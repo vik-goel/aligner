@@ -23,7 +23,7 @@ public class Game extends com.badlogic.gdx.Game {
     };
 
     private ShapeRenderer sr;
-    private SpriteBatch batch;
+    private SpriteBatch fontBatch, texBatch;
     private BitmapFont font;
     private Random random = new Random();
 
@@ -43,35 +43,45 @@ public class Game extends com.badlogic.gdx.Game {
     private float outerRadius;
     private float centerX, centerY;
 
-    private double[] innerSpikes, outerSpikes;
+    private Spike[] innerSpikes, outerSpikes;
     private Vector2[] spike = new Vector2[]{new Vector2(), new Vector2(), new Vector2()};
 
     private double coinAngle;
 
+    private boolean playing = false, inMenu = true;
+    private float menuBackgroundAlpha = 1f;
+    private float topTextAlpha = 1;
+    private Button[] buttons;
+
     public void create() {
-        coinAngle = 2.1;
-
-        innerSpikes = new double[100];
-        outerSpikes = new double[100];
-
-        for (int i = 0; i < innerSpikes.length; i++) {
-            innerSpikes[i] = outerSpikes[i] = Double.MAX_VALUE;
-        }
-
-        /*innerSpikes[0] = Math.PI / 4.0;
-        innerSpikes[1] = 3.0 * Math.PI / 4.0;
-        innerSpikes[2] = 5.0 * Math.PI / 4.0;
-        innerSpikes[3] = 7.0 * Math.PI / 4.0;
-
-        outerSpikes[0] = Math.PI / 4.0;
-        outerSpikes[1] = 3.0 * Math.PI / 4.0;
-        outerSpikes[2] = 5.0 * Math.PI / 4.0;
-        outerSpikes[3] = 7.0 * Math.PI / 4.0;*/
+        Textures.loadTextures();
+        Sounds.init();
 
         centerX = Util.getAspectRatio() / 2f;
         centerY = 0.5f;
         innerRadius = centerX * 0.3f;
         outerRadius = centerX * 0.9f;
+
+        float buttonRadius = (outerRadius - innerRadius) / 4f;
+        float buttonXOffs = buttonRadius * 2.5f;
+        float buttonY = (innerRadius + outerRadius) / 2f + innerRadius + buttonRadius + buttonXOffs / 4;
+
+        buttons = new Button[]{
+                new PlayButton(centerX, buttonY, buttonRadius, this),
+                new SoundButton(centerX + buttonXOffs, buttonY, buttonRadius),
+                new LeaderboardButton(centerX - buttonXOffs, buttonY, buttonRadius)
+        };
+
+        coinAngle = 2.1;
+
+        innerSpikes = new Spike[100];
+        outerSpikes = new Spike[100];
+
+        //assumes innerspikes and outerspikes arrays are the same length
+        for (int i = 0; i < innerSpikes.length; i++) {
+            innerSpikes[i] = new Spike();
+            outerSpikes[i] = new Spike();
+        }
 
         OrthographicCamera camera = new OrthographicCamera();
         camera.setToOrtho(false, Util.getAspectRatio(), 1);
@@ -79,8 +89,11 @@ public class Game extends com.badlogic.gdx.Game {
         sr = new ShapeRenderer();
         sr.setProjectionMatrix(camera.combined);
 
-        batch = new SpriteBatch();
-        font = new BitmapFont(Gdx.files.internal("score_font.fnt"), Gdx.files.internal("score_font.png"), false);
+        texBatch = new SpriteBatch();
+        texBatch.setProjectionMatrix(camera.combined);
+
+        fontBatch = new SpriteBatch();
+        font = new BitmapFont(Gdx.files.internal("fonts/score_font.fnt"), Gdx.files.internal("fonts/score_font.png"), false);
         font.getRegion().getTexture().setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
 
         progressBarPercent = 0;
@@ -98,64 +111,39 @@ public class Game extends com.badlogic.gdx.Game {
 
         onInside = lastLoc =  true;
         onOutside = false;
+
+        //TODO: Spawn spikes at startup
     }
 
     public void render() {
         float dt = Gdx.graphics.getDeltaTime() * 60f;
 
-        if (onOutside || onInside)
-            progressBarPercent += 0.008f * dt;
-
-        if (progressBarPercent >= 1) {
-            lose();
-        }
-
-        float innerRotationAmt = -2.05f * dt;
-        float outerRotationAmt = 1.35f * dt;
-
-        innerRotation += innerRotationAmt;
-
-        //TODO: combine pasted code below into one function
-        for (int i = 0; i < innerSpikes.length; i++) {
-            if (innerSpikes[i] != Double.MAX_VALUE) {
-                innerSpikes[i] -= Math.toRadians(innerRotationAmt);
-                innerSpikes[i] %= Math.PI * 2.0;
-                if (innerSpikes[i] < 0) innerSpikes[i] += Math.PI * 2.0;
-            }
-        }
-
-        for (int i = 0; i < outerSpikes.length; i++) {
-            if (outerSpikes[i] != Double.MAX_VALUE) {
-                outerSpikes[i] -= Math.toRadians(outerRotationAmt);
-                outerSpikes[i] %= Math.PI * 2.0;
-                if (outerSpikes[i] < 0) outerSpikes[i] += Math.PI * 2.0;
-            }
-        }
-
-        if (onInside)
-            rotatePlayer(innerRotationAmt);
-
-        outerRotation += outerRotationAmt;
-        if (onOutside) {
-            rotatePlayer(outerRotationAmt);
-        }
-
-        outerRotation %= 360f;
-        innerRotation %= 360f;
+        updateProgressBarPercent(dt);
+        rotateWorld(dt);
+        changeMenuBackgroundAlpha(dt);
 
         float xCenter = Util.getAspectRatio() / 2f;
         float dst = Vector2.dst(xCenter, 0.5f, playerX, playerY);
         double dir = Math.atan2(playerY - 0.5f, playerX - xCenter);
         if (dir < 0) dir += Math.PI * 2.0;
 
-        if (Gdx.input.justTouched() && (onInside || onOutside)) {
-            float dirMul = onInside ? 1 : -1;
+        if (!playing && !inMenu && Util.justDown())
+            play();
 
-            velX = (float) Math.cos(dir) * speed * dirMul;
-            velY = (float) Math.sin(dir) * speed * dirMul;
+        if (playing) {
+            if (Util.justDown() && (onInside || onOutside)) {
+                float dirMul = onInside ? 1 : -1;
 
-            lastLoc = onInside;
-            onInside = onOutside = false;
+                velX = (float) Math.cos(dir) * speed * dirMul;
+                velY = (float) Math.sin(dir) * speed * dirMul;
+
+                lastLoc = onInside;
+                onInside = onOutside = false;
+            }
+
+            changeButtonAlpha(false, dt);
+        } else {
+            changeButtonAlpha(true, dt);
         }
 
         if (!onInside && !onOutside) {
@@ -200,23 +188,35 @@ public class Game extends com.badlogic.gdx.Game {
                     playerColorIndex = randColIndex;
                 }
 
+                if (Sounds.isEnabled()) {
+                    Sounds.hit[random.nextInt(Sounds.hit.length)].play();
+                }
+
                 int numSpikes = onOutside ? random.nextInt(5) + 2 : random.nextInt(3) + 1;
 
-                double[] spikes = onOutside ? outerSpikes : innerSpikes;
+                Spike[] spikes = onOutside ? outerSpikes : innerSpikes;
 
-                for (int i = 0; i < spikes.length; i++)
-                    spikes[i] = Double.MAX_VALUE;
+                for (int i = 0; i < spikes.length; i++) {
+                    if (spikes[i].active) {
+                        spikes[i].movingIn = true;
+                    }
+                }
 
                 //TODO: Prevent impossible scenarios (too many spikes in a given quadrant)
+                //TODO: Fix bug which causes spikes to spawn on colour boundaries
                 Outer: for (int i = 0; i < numSpikes; i++) {
                     Inner: for (int j = 0; j < spikes.length; j++) {
                        if (j == spikes.length - 1)
                            break Outer;
 
-                       if (spikes[j] == Double.MAX_VALUE) {
+                       if (!spikes[j].active) {
                            FindAngle: while (true) {
                                double spikeAngle = random.nextDouble() * Math.PI * 2.0;
-                               spikes[j] = spikeAngle;
+                               spikes[j].angle = spikeAngle;
+                               spikes[j].active = spikes[j].movingOut = true;
+                               spikes[j].movingIn = false;
+                               spikes[j].protrudePercent = 0;
+                               spikes[j].collidable = true;
 
                                float spikeQuad = getAdjustedAngle(spikeAngle, onOutside) / 90f;
                                if (spikeQuad - (int)spikeQuad < 0.125f)
@@ -224,8 +224,8 @@ public class Game extends com.badlogic.gdx.Game {
 
                                for (int k = 0; k < spikes.length; k++) {
                                    if (k == j) continue;
-                                   if (spikes[k] == Double.MAX_VALUE) continue;
-                                   if (Math.abs(spikes[k] - spikes[j]) < 0.125) continue FindAngle;
+                                   if (!spikes[k].active) continue;
+                                   if (Math.abs(spikes[k].angle - spikes[j].angle) < 0.125) continue FindAngle;
                                }
 
                                if (Math.abs(spikeAngle - dir) > 0.5) {
@@ -236,15 +236,98 @@ public class Game extends com.badlogic.gdx.Game {
                        }
                     }
                 }
-
-
             } else {
                 playerX += velX * dt;
                 playerY += velY * dt;
             }
         }
 
-        drawScreen();
+        changeSpikeProtrusions(innerSpikes, dt);
+        changeSpikeProtrusions(outerSpikes, dt);
+        drawScreen(dt);
+    }
+
+    private void updateProgressBarPercent(float dt) {
+        if (onOutside || onInside)
+            progressBarPercent += 0.008f * dt;
+
+        if (progressBarPercent >= 1) {
+            lose();
+        }
+
+        if (!playing)
+            progressBarPercent = 0;
+    }
+
+    private void rotateWorld(float dt) {
+        float innerRotationAmt = -2.05f * dt;
+        float outerRotationAmt = 1.35f * dt;
+
+        innerRotation += innerRotationAmt;
+        innerRotation %= 360f;
+
+        rotateSpikes(innerSpikes, innerRotationAmt);
+        rotateSpikes(outerSpikes, outerRotationAmt);
+
+        outerRotation += outerRotationAmt;
+        outerRotation %= 360f;
+
+        if (onInside) rotatePlayer(innerRotationAmt);
+        if (onOutside)  rotatePlayer(outerRotationAmt);
+    }
+
+    private void changeMenuBackgroundAlpha(float dt) {
+        final float menuBackgroundMovement = 0.04f * dt;
+        if (inMenu && menuBackgroundAlpha < 1) menuBackgroundAlpha += menuBackgroundMovement;
+        if (!inMenu && menuBackgroundAlpha > 0) menuBackgroundAlpha -= menuBackgroundMovement;
+        if (menuBackgroundAlpha < 0) menuBackgroundAlpha = 0;
+        if (menuBackgroundAlpha > 1) menuBackgroundAlpha = 1;
+    }
+
+    private void changeSpikeProtrusions(Spike[] spikes, float dt) {
+        final float percentChange = 0.04f * dt;
+
+        for (int i = 0; i < spikes.length; i++) {
+            if (spikes[i].active) {
+                float change = 0f;
+
+                if (spikes[i].movingIn && spikes[i].movingOut)
+                    throw new IllegalStateException("A spike cannot be both moving in and moving out at the same time!");
+
+                if (spikes[i].movingIn)
+                    change = -percentChange;
+                else if (spikes[i].movingOut)
+                    change = percentChange;
+
+                spikes[i].protrudePercent += change;
+
+                if (spikes[i].protrudePercent > 1) {
+                    spikes[i].protrudePercent = 1;
+                    spikes[i].movingOut = false;
+                }
+                else if (spikes[i].protrudePercent < 0) {
+                    spikes[i].active = false;
+                }
+            }
+        }
+    }
+
+    private void changeButtonAlpha(boolean increase, float dt) {
+        float changeInAlpha = 0.05f * dt * (increase ? 1 : -1);
+        topTextAlpha += changeInAlpha;
+
+        if (topTextAlpha < 0) topTextAlpha = 0;
+        else if (topTextAlpha > 1) topTextAlpha = 1;
+    }
+
+    private void rotateSpikes(Spike[] spikes, float rotAmt) {
+        for (int i = 0; i < spikes.length; i++) {
+            if (spikes[i].active) {
+                spikes[i].angle -= Math.toRadians(rotAmt);
+                spikes[i].angle %= Math.PI * 2.0;
+                if (spikes[i].angle < 0) spikes[i].angle += Math.PI * 2.0;
+            }
+        }
     }
 
     private int getQuadrant(double rad, boolean outside) {
@@ -264,8 +347,10 @@ public class Game extends com.badlogic.gdx.Game {
 
 
     private void lose() {
-        score = 0;
+        //score = 0;
         progressBarPercent = 0;
+        playing = false;
+        inMenu = true;
     }
 
     private void rotatePlayer(float degrees) {
@@ -277,12 +362,12 @@ public class Game extends com.badlogic.gdx.Game {
         playerY = (float)(Math.sin(dir) * dst) + centerY;
     }
 
-    private void drawScreen() {
+    private void drawScreen(float dt) {
         Color bgColor = Color.BLACK;
-        Color textColor = Color.WHITE;
 
         Gdx.gl.glClearColor(bgColor.r, bgColor.g, bgColor.b, 1f);
         Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
+
 
         float xCenter = Util.getAspectRatio() / 2f;
         int numSegments = 60;
@@ -345,14 +430,14 @@ public class Game extends com.badlogic.gdx.Game {
 
         sr.setColor(colors[4]);
         float coinDst = (innerRadius + outerRadius) / 2f;
-        float coinRadius = 0.01f;
+        float coinRadius = 0.0125f;
         float coinX = (float)(Math.cos(coinAngle) * coinDst + centerX);
         float coinY = (float)(Math.sin(coinAngle) * coinDst + centerY);
 
         if (Vector2.dst(coinX, coinY, playerX, playerY) <= coinRadius + playerRadius) {
             score += 5;
 
-            while (true) { //TODO: Find a cleaner way to write this
+            while (true) {
                 double newCoinAngle = Math.PI * 2.0 * random.nextDouble();
 
                 if (Math.abs(newCoinAngle - coinAngle) > 0.4) {
@@ -366,29 +451,63 @@ public class Game extends com.badlogic.gdx.Game {
 
         sr.end();
 
-        batch.begin();
+        fontBatch.begin();
+        fontBatch.setColor(Color.WHITE);
         font.setColor(colors[4]);
         font.setScale(0.8f * (Gdx.graphics.getWidth() / 800f));
-
         String scoreString = String.valueOf(score); //TODO: Check if allocating memory for this every frame is a problem
-
         BitmapFont.TextBounds bounds = font.getBounds(scoreString);
+        font.draw(fontBatch, scoreString, (Gdx.graphics.getWidth() - bounds.width) / 2, (Gdx.graphics.getHeight() + bounds.height) / 2);
+        fontBatch.end();
 
-        font.draw(batch, scoreString, (Gdx.graphics.getWidth() - bounds.width) / 2, (Gdx.graphics.getHeight() + bounds.height) / 2);
-        batch.end();
+        Gdx.gl20.glEnable(GL20.GL_BLEND);
+        Gdx.gl20.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
+
+        sr.begin(ShapeRenderer.ShapeType.Filled);
+        final float menuCol = 0f;
+        sr.setColor(menuCol, menuCol, menuCol, menuBackgroundAlpha * 0.5f);
+        sr.rect(0f, 0f, Util.getAspectRatio(), 1f);
+        sr.end();
+
+        fontBatch.begin();
+
+        if (topTextAlpha > 0) {
+            String msg = inMenu ? "Align" : "Tap to Start";
+
+            fontBatch.setColor(1, 1, 1, topTextAlpha);
+            font.setColor(colors[4].r, colors[4].g, colors[4].b, topTextAlpha);
+            bounds = font.getBounds(msg);
+            font.draw(fontBatch, msg, (Gdx.graphics.getWidth() - bounds.width) / 2, Gdx.graphics.getHeight() - 75); //TODO: Move this into normalized coordinates
+        }
+
+        fontBatch.end();
+
+        texBatch.begin();
+
+        if (menuBackgroundAlpha > 0) {
+            texBatch.setColor(1, 1, 1, menuBackgroundAlpha);
+
+            for (int i = 0; i < buttons.length; i++)
+                buttons[i].updateAndRender(texBatch, dt);
+        }
+
+        texBatch.end();
     }
 
     //TODO: Might want to sort spikes by color for performance
-    private void drawSpikes(double[] spikes, boolean outside) {
+    //TODO: Ensure inner and outer spikes are the same size
+    private void drawSpikes(Spike[] spikes, boolean outside) {
         for (int i = 0; i < spikes.length; i++) {
-            double spikeAngle = spikes[i] + Math.PI / 2.0;
+            double spikeAngle = spikes[i].angle + Math.PI / 2.0;
 
-            if (spikeAngle == Double.MAX_VALUE)
+            if (!spikes[i].active)
                 continue;
 
-            final float sideLength = 0.02f;
+            final float sideLength = 0.0275f * (float)spikes[i].protrudePercent;
 
-            float spikeOffs = outside ? 0.018f : 0.005f;
+            float spikeOffs = outside ? 0.022f : 0.005f;
+            spikeOffs *= spikes[i].protrudePercent;
+
             float spike0YOffs = outside ? -sideLength : 0;
             float spike2YOffs = outside ? sideLength : -sideLength;
             float radius = outside ? outerRadius : innerRadius;
@@ -397,13 +516,17 @@ public class Game extends com.badlogic.gdx.Game {
             spike[1].set(spike[0].x + sideLength, spike[0].y);
             spike[2].set((spike[0].x + spike[1].x) / 2f, spike[0].y + spike2YOffs);
 
-            rotateSpike(spike[0], spikeAngle);
-            rotateSpike(spike[1], spikeAngle);
-            rotateSpike(spike[2], spikeAngle);
-
             for (int j = 0; j < 3; j++)
-                if (Vector2.dst(playerX, playerY, spike[j].x, spike[j].y) < playerRadius)
-                    lose();
+                rotateSpike(spike[j], spikeAngle);
+
+            if (spikes[i].collidable) {
+                for (int j = 0; j < 3; j++) {
+                    if (Vector2.dst(playerX, playerY, spike[j].x, spike[j].y) < playerRadius) {
+                        spikes[i].collidable = false;
+                        lose();
+                    }
+                }
+            }
 
             int quadrant = getQuadrant(spikeAngle, outside) - 1;
             if (quadrant < 0) quadrant = 3;
@@ -419,4 +542,24 @@ public class Game extends com.badlogic.gdx.Game {
         vec.add(centerX, centerY);
     }
 
+    public void play() {
+        if (inMenu) {
+            inMenu = false;
+            return;
+        }
+
+        if (playing)
+            throw new IllegalStateException("Already playing!");
+        playing = true;
+        score = 0;
+    }
+
+}
+
+class Spike {
+    public double angle;
+    public boolean active = false;
+    public double protrudePercent = 0;
+    public boolean movingIn = false, movingOut = false;
+    public boolean collidable = true;
 }

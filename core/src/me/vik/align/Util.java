@@ -2,6 +2,7 @@ package me.vik.align;
 
 import com.badlogic.gdx.Application.ApplicationType;
 import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.Input;
 import com.badlogic.gdx.graphics.Color;
 
 public class Util {
@@ -18,6 +19,10 @@ public class Util {
 
     public static boolean onMobile() {
         return Gdx.app.getType() == ApplicationType.Android || Gdx.app.getType() == ApplicationType.iOS;
+    }
+
+    public static boolean justDown() {
+        return (Gdx.input.justTouched() || Gdx.input.isKeyJustPressed(Input.Keys.SPACE));
     }
 
 }
