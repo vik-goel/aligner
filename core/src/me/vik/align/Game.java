@@ -13,7 +13,6 @@ import com.badlogic.gdx.math.Vector2;
 
 import java.util.Random;
 
-//TODO: Enlarge and then shrink back world on jump
 //TODO: Camera shake on death
 //TODO: Particle effects on death
 //TODO: Particle effects on pick up coin
@@ -74,6 +73,8 @@ public class Game extends com.badlogic.gdx.Game {
     private float topTextAlpha = 1;
     private Button[] buttons;
 
+    private float scaleFactor = 1f, scaleVelocity = 0f, scaleAcceleration =  0.0008f;
+
     private static final String align = "Align", tapToStart = "Tap to Start", scoreTitleString = "Score: ", bestString = "Best: ";
 
     public void create() {
@@ -126,7 +127,7 @@ public class Game extends com.badlogic.gdx.Game {
         score = 0;
 
         playerX = centerX;
-        playerY = innerRadius + playerRadius + centerY;
+        playerY = innerRadius * scaleFactor + playerRadius + centerY;
         velX = velY = 0;
         speed = 0.005f;
 
@@ -191,8 +192,10 @@ public class Game extends com.badlogic.gdx.Game {
         }
 
         if (!onInside && !onOutside) {
-            final float minDst = innerRadius + playerRadius;
-            final float maxDst = outerRadius - playerRadius;
+            final float unscaledMinDst = innerRadius + playerRadius;
+            final float unscaledMaxDst = outerRadius - playerRadius;
+            final float minDst = innerRadius * scaleFactor + playerRadius;
+            final float maxDst = outerRadius * scaleFactor - playerRadius;
 
             boolean changeCol = false;
 
@@ -241,7 +244,36 @@ public class Game extends com.badlogic.gdx.Game {
             } else {
                 playerX += velX * dt;
                 playerY += velY * dt;
+
+                float range = unscaledMaxDst - unscaledMinDst;
+
+                boolean shouldIncreaseScale = lastLoc ? dst - unscaledMinDst < range / 2.5f :
+                                                        dst - unscaledMinDst >= range - range / 2.5f ;
+
+                if (shouldIncreaseScale) {
+                    if (scaleVelocity < 0) scaleVelocity = 0;
+                    scaleVelocity += scaleAcceleration;
+                }
+                else {
+                    if (scaleVelocity > 0) scaleVelocity = 0;
+                    scaleVelocity -= scaleAcceleration;
+                }
+
+                scaleFactor += scaleVelocity * dt;
+
+                if (scaleFactor < 1) {
+                    scaleFactor = 1;
+                    scaleVelocity = 0;
+                }
             }
+        }
+
+        if (onInside || onOutside) {
+            if (scaleVelocity != 0)
+                System.out.println(scaleVelocity);
+
+            scaleVelocity = 0;
+            scaleFactor = 1;
         }
 
         changeSpikeProtrusions(innerSpikes, dt);
@@ -414,6 +446,7 @@ public class Game extends com.badlogic.gdx.Game {
             //TODO: Send score to leaderboards
         }
 
+        scaleFactor = 1;
         progressBarPercent = 0;
         playing = false;
         inMenu = true;
@@ -440,49 +473,49 @@ public class Game extends com.badlogic.gdx.Game {
         sr.begin(ShapeRenderer.ShapeType.Filled);
 
         sr.setColor(colors[0]);
-        sr.arc(xCenter, 0.5f, outerRadius * 1.08f, -outerRotation, 90f, numSegments);
+        sr.arc(xCenter, 0.5f, outerRadius * 1.08f * scaleFactor, -outerRotation, 90f, numSegments);
 
         sr.setColor(colors[1]);
-        sr.arc(xCenter, 0.5f, outerRadius * 1.08f, 90 - outerRotation, 90f, numSegments);
+        sr.arc(xCenter, 0.5f, outerRadius * 1.08f * scaleFactor, 90 - outerRotation, 90f, numSegments);
 
         sr.setColor(colors[2]);
-        sr.arc(xCenter, 0.5f, outerRadius * 1.08f, 180 - outerRotation, 90f, numSegments);
+        sr.arc(xCenter, 0.5f, outerRadius * 1.08f * scaleFactor, 180 - outerRotation, 90f, numSegments);
 
         sr.setColor(colors[3]);
-        sr.arc(xCenter, 0.5f, outerRadius * 1.08f, 270 - outerRotation, 90f, numSegments);
+        sr.arc(xCenter, 0.5f, outerRadius * 1.08f * scaleFactor, 270 - outerRotation, 90f, numSegments);
 
         sr.setColor(bgColor);
-        sr.arc(xCenter, 0.5f, 1, 90, 360f * (/*1 - */progressBarPercent), numSegments);
+        sr.arc(xCenter, 0.5f, 1f, 90, 360f * (progressBarPercent), numSegments);
 
         sr.setColor(colors[0]);
-        sr.arc(xCenter, 0.5f, outerRadius * 1.035f, -outerRotation, 90f, numSegments);
+        sr.arc(xCenter, 0.5f, outerRadius * 1.035f * scaleFactor, -outerRotation, 90f, numSegments);
 
         sr.setColor(colors[1]);
-        sr.arc(xCenter, 0.5f, outerRadius * 1.035f, 90 - outerRotation, 90f, numSegments);
+        sr.arc(xCenter, 0.5f, outerRadius * 1.035f * scaleFactor, 90 - outerRotation, 90f, numSegments);
 
         sr.setColor(colors[2]);
-        sr.arc(xCenter, 0.5f, outerRadius * 1.035f, 180 - outerRotation, 90f, numSegments);
+        sr.arc(xCenter, 0.5f, outerRadius * 1.035f * scaleFactor, 180 - outerRotation, 90f, numSegments);
 
         sr.setColor(colors[3]);
-        sr.arc(xCenter, 0.5f, outerRadius * 1.035f, 270 - outerRotation, 90f, numSegments);
+        sr.arc(xCenter, 0.5f, outerRadius * 1.035f * scaleFactor, 270 - outerRotation, 90f, numSegments);
 
         sr.setColor(bgColor);
-        sr.circle(xCenter, 0.5f, outerRadius, numSegments);
+        sr.circle(xCenter, 0.5f, outerRadius * scaleFactor, numSegments);
 
         sr.setColor(colors[0]);
-        sr.arc(xCenter, 0.5f, innerRadius, -innerRotation, 90f, numSegments);
+        sr.arc(xCenter, 0.5f, innerRadius * scaleFactor, -innerRotation, 90f, numSegments);
 
         sr.setColor(colors[1]);
-        sr.arc(xCenter, 0.5f, innerRadius, 90 - innerRotation, 90f, numSegments);
+        sr.arc(xCenter, 0.5f, innerRadius * scaleFactor, 90 - innerRotation, 90f, numSegments);
 
         sr.setColor(colors[2]);
-        sr.arc(xCenter, 0.5f, innerRadius, 180 - innerRotation, 90f, numSegments);
+        sr.arc(xCenter, 0.5f, innerRadius * scaleFactor, 180 - innerRotation, 90f, numSegments);
 
         sr.setColor(colors[3]);
-        sr.arc(xCenter, 0.5f, innerRadius, 270 - innerRotation, 90f, numSegments);
+        sr.arc(xCenter, 0.5f, innerRadius * scaleFactor, 270 - innerRotation, 90f, numSegments);
 
         sr.setColor(bgColor);
-        sr.circle(xCenter, 0.5f, innerRadius * 0.9f, numSegments);
+        sr.circle(xCenter, 0.5f, innerRadius * scaleFactor * 0.9f, numSegments);
 
         sr.setColor(playerColor);
         sr.circle(playerX, playerY, playerRadius, numSegments);
@@ -492,7 +525,7 @@ public class Game extends com.badlogic.gdx.Game {
 
         if (playing) {
             sr.setColor(colors[4]);
-            float coinDst = (innerRadius + outerRadius) / 2f;
+            float coinDst = (innerRadius + outerRadius) / 2f * scaleFactor;
             float coinRadius = 0.0125f;
             float coinX = (float) (Math.cos(coinAngle) * coinDst + centerX);
             float coinY = (float) (Math.sin(coinAngle) * coinDst + centerY);
@@ -585,7 +618,7 @@ public class Game extends com.badlogic.gdx.Game {
 
             float spike0YOffs = outside ? -sideLength : 0;
             float spike2YOffs = outside ? sideLength : -sideLength;
-            float radius = outside ? outerRadius : innerRadius;
+            float radius = (outside ? outerRadius : innerRadius) * scaleFactor;
 
             spikeBuffer[0].set(centerX - sideLength / 2f, centerY - radius + spikeOffs + spike0YOffs);
             spikeBuffer[1].set(spikeBuffer[0].x + sideLength, spikeBuffer[0].y);

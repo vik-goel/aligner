@@ -32,18 +32,18 @@ public abstract class Button {
         }
 
         if (selected) {
-            if (!touchedWithinRadius) deselect(dt);
+            if (!touchedWithinRadius) deselect();
             else if (!Gdx.input.isTouched()) {
-                deselect(dt);
+                deselect();
                 onClick();
             }
         }
 
-        if (!acceptInput) deselect(dt);
+        if (!acceptInput) deselect();
 
         if (selected || renderRadius != radius) {
             radiusVelocity += radiusAcceleration;
-            renderRadius += radiusVelocity;
+            renderRadius += radiusVelocity * dt;
         }
 
         float minRadius = radius * 0.75f;
@@ -54,12 +54,11 @@ public abstract class Button {
         batch.draw(texture, x - renderRadius, y - renderRadius, renderRadius * 2, renderRadius * 2);
     }
 
-    private void deselect(float dt) {
+    private void deselect() {
         selected = false;
         radiusVelocity = 0;
         if (radiusAcceleration < 0) radiusAcceleration *= -1;
     }
-
 
     protected abstract void onClick();
 }
