@@ -20,13 +20,13 @@ public abstract class Button {
     }
 
     //pre-condition: batch has begun drawing
-    public void updateAndRender(SpriteBatch batch, float dt) {
+    public void updateAndRender(SpriteBatch batch, float dt, boolean acceptInput) {
         //Converting screen coordinates into normalized coordinates
         float touchX = Gdx.input.getX() / (float)Gdx.graphics.getHeight();
         float touchY = 1f - Gdx.input.getY() / (float)Gdx.graphics.getHeight();
         boolean touchedWithinRadius = Vector2.dst(x, y, touchX, touchY) <= radius;
 
-        if (Gdx.input.justTouched()) {
+        if (Gdx.input.justTouched() && acceptInput) {
             if (radiusAcceleration > 0) radiusAcceleration *= -1;
             selected = touchedWithinRadius;
         }
@@ -38,6 +38,8 @@ public abstract class Button {
                 onClick();
             }
         }
+
+        if (!acceptInput) deselect(dt);
 
         if (selected || renderRadius != radius) {
             radiusVelocity += radiusAcceleration;

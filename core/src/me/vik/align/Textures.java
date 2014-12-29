@@ -9,9 +9,8 @@ public class Textures {
 
     private Textures() {}
 
-    //TODO: Ensure this is called when the android activity is restarted if necessary
     public static void loadTextures() {
-        play = createTexture("play4.png");
+        play = createTexture("play.png");
         soundOff = createTexture("sound off.png");
         soundOn = createTexture("sound on.png");
         leaderboard = createTexture("leaderboard.png");

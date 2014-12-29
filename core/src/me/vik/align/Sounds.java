@@ -1,6 +1,7 @@
 package me.vik.align;
 
 import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.Preferences;
 import com.badlogic.gdx.audio.Sound;
 
 public class Sounds {
@@ -10,23 +11,28 @@ public class Sounds {
     private static boolean enabled;
     private static boolean initialized = false;
 
+    private static final String prefsString = "soundEnabled";
+
     public static void toggleEnabled() {
-        if (!initialized) throw new IllegalStateException("Sounds not yet initialized!");
-        enabled = !enabled; //TODO: update value in file
+        assert(!initialized);
+        enabled = !enabled;
+
+        Preferences prefs = Gdx.app.getPreferences(Game.fileOutputName);
+        prefs.putBoolean(prefsString, enabled);
+        prefs.flush();
     }
 
     public static boolean isEnabled() {
-        if (!initialized) throw new IllegalStateException("Sounds not yet initialized!");
-
+        assert(!initialized);
         return enabled;
     }
 
     public static void init() {
-        if (initialized) throw new IllegalStateException("Sounds already initialized!");
+        assert(initialized);
         initialized = true;
 
-        //TODO: Read this from a file
-        enabled = true;
+        Preferences prefs = Gdx.app.getPreferences(Game.fileOutputName);
+        enabled = prefs.getBoolean(prefsString, true);
 
         hit = new Sound[] {
             Gdx.audio.newSound(Gdx.files.internal("sounds/hit1.wav"))
