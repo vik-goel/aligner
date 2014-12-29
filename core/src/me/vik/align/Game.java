@@ -17,7 +17,6 @@ import java.util.Random;
 //TODO: The bottoms of the buttons look a little bit cut off, fix this
 
 //TODO: Particle effects on death
-//TODO: Particle effects on pick up coin
 //TODO: Player Motion trail
 
 //TODO: Add pause button which is available while playing game
@@ -74,6 +73,7 @@ public class Game extends com.badlogic.gdx.Game {
     private Vector2[] spikeBuffer = new Vector2[]{new Vector2(), new Vector2(), new Vector2()};
 
     private double coinAngle;
+    private float plus5X, plus5Y, plus5Alpha = 0, plus5VelX, plus5VelY;
 
     private boolean playing = false, playedFirstGame = false, inMenu = true;
     private float menuBackgroundAlpha = 1f;
@@ -226,6 +226,7 @@ public class Game extends com.badlogic.gdx.Game {
         rotateWorld(dt);
         changeMenuBackgroundAlpha(dt);
         shake(dt);
+        updatePlus5(dt);
 
         float xCenter = Util.getAspectRatio() / 2f;
         float dst = Vector2.dst(xCenter, 0.5f, playerX, playerY);
@@ -297,8 +298,7 @@ public class Game extends com.badlogic.gdx.Game {
                     playerColorIndex = randColIndex;
                 }
 
-                if (playing)
-                    spawnSpikes(dir);
+                spawnSpikes(dir);
             } else {
                 playerX += playerVelX * dt;
                 playerY += playerVelY * dt;
@@ -350,6 +350,13 @@ public class Game extends com.badlogic.gdx.Game {
         else return String.valueOf(i);
     }
 
+    private void updatePlus5(float dt) {
+        plus5Alpha -= 0.025 * dt;
+        plus5X += plus5VelX * dt;
+        plus5Y += plus5VelY * dt;
+        if (plus5Alpha < 0) plus5Alpha = 0;
+    }
+
     private void spawnSpikes(double playerDir) {
         int numSpikes = onOutside ? random.nextInt(7) + 2 : random.nextInt(4) + 1;
 
@@ -378,6 +385,8 @@ public class Game extends com.badlogic.gdx.Game {
                         if (edgeDistance < minEdgeDistance || edgeDistance > (1f - minEdgeDistance))
                             continue;
 
+                        if (Math.abs(spikeAngle - playerDir) < 0.5) continue;
+
                         int numSpikesInQuadrant = 1;
                         int jQuadrant = (int) spikeQuad;
 
@@ -393,8 +402,6 @@ public class Game extends com.badlogic.gdx.Game {
 
                         if ((onOutside && numSpikesInQuadrant > 4) ||
                             ((!onOutside) && numSpikesInQuadrant > 2)) continue;
-
-                        if (Math.abs(spikeAngle - playerDir) < 0.5) continue;
 
                         spikes[j].angle = spikeAngle;
                         spikes[j].active = spikes[j].movingOut = true;
@@ -596,7 +603,7 @@ public class Game extends com.badlogic.gdx.Game {
         drawSpikes(innerSpikes, false);
         drawSpikes(outerSpikes, true);
 
-        if (playing) {
+        if (playing && score > 0) {
             sr.setColor(colors[4]);
             float coinDst = (innerRadius + outerRadius) / 2f * scaleFactor;
             float coinRadius = 0.0125f;
@@ -607,6 +614,15 @@ public class Game extends com.badlogic.gdx.Game {
                 setScore(score + 5);
 
                 Sounds.playRandom(Sounds.coin);
+
+                plus5X = coinX;
+                plus5Y = coinY;
+                plus5Alpha = 1;
+
+                double plus5Dir = Math.PI / 2.0;
+                final double plus5Speed = 0.001;
+                plus5VelX = (float)(Math.cos(plus5Dir) * plus5Speed);
+                plus5VelY = (float)(Math.sin(plus5Dir) * plus5Speed);
 
                 while (true) {
                     double newCoinAngle = getRandomRad();
@@ -627,6 +643,8 @@ public class Game extends com.badlogic.gdx.Game {
         font.setScale(0.7f * (Gdx.graphics.getWidth() / 800f));
         BitmapFont.TextBounds bounds = font.getBounds(scoreString);
         font.draw(fontBatch, scoreString, (Gdx.graphics.getWidth() - bounds.width) / 2, (Gdx.graphics.getHeight() + bounds.height) / 2);
+        font.setColor(colors[4].r, colors[4].g, colors[4].b, plus5Alpha);
+        font.draw(fontBatch, "+5", plus5X * Gdx.graphics.getWidth(), plus5Y * Gdx.graphics.getHeight());
         fontBatch.end();
 
         Gdx.gl20.glEnable(GL20.GL_BLEND);
