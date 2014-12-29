@@ -13,7 +13,10 @@ import com.badlogic.gdx.math.Vector2;
 
 import java.util.Random;
 
-//TODO: Camera shake on death
+//TODO: Reformat the score, best display into 4 rows
+//TODO: Don't display score before the first playthrough
+//TODO: Change texture for leaderboard button
+//TODO: The bottoms of the buttons look a little bit cut off, fix this
 //TODO: Particle effects on death
 //TODO: Particle effects on pick up coin
 //TODO: Player Motion trail
@@ -41,6 +44,16 @@ public class Game extends com.badlogic.gdx.Game {
 
     public static final String fileOutputName = "me.vik.align";
 
+    private int score, highscore;
+    private String highscorePrefsString = "highScore";
+
+    private OrthographicCamera camera;
+    private boolean shaking = false;
+    private float shakeVelX = 0, shakeVelY = 0;
+    private float minShakeVel = 0.004f, initialShakeVel = 0.0125f, shakeEnergyLoss = 0.85f;
+    private float shakeTime = 0, shakeTimeCounter = 0;
+    private float minShakeTime = 1, maxShakeTime = 3;
+
     private ShapeRenderer sr;
     private SpriteBatch fontBatch, texBatch;
     private BitmapFont font;
@@ -50,15 +63,12 @@ public class Game extends com.badlogic.gdx.Game {
     private float innerRotation, outerRotation;
 
     private float playerX, playerY;
-    private float velX, velY, speed;
+    private float playerVelX, playerVelY, playerSpeed;
     private Color playerColor = colors[0];
     private int playerColorIndex = 0;
+    private float playerRadius = 0.02f;
     private boolean onInside, onOutside, lastLoc;
 
-    private int score, highscore;
-    private String highscorePrefsString = "highScore";
-
-    private float playerRadius = 0.02f;
     private float innerRadius;
     private float outerRadius;
     private float centerX, centerY;
@@ -96,7 +106,7 @@ public class Game extends com.badlogic.gdx.Game {
                 new LeaderboardButton(centerX - buttonXOffs, buttonY, buttonRadius)
         };
 
-        coinAngle = random.nextDouble() * Math.PI * 2.0;
+        coinAngle = getRandomRad();
 
         innerSpikes = new Spike[100];
         outerSpikes = new Spike[100];
@@ -107,14 +117,13 @@ public class Game extends com.badlogic.gdx.Game {
             outerSpikes[i] = new Spike();
         }
 
-        OrthographicCamera camera = new OrthographicCamera();
+        camera = new OrthographicCamera();
         camera.setToOrtho(false, Util.getAspectRatio(), 1);
 
-         sr = new ShapeRenderer();
-         sr.setProjectionMatrix(camera.combined);
-
+        sr = new ShapeRenderer();
         texBatch = new SpriteBatch();
-        texBatch.setProjectionMatrix(camera.combined);
+
+        projectCamera();
 
         fontBatch = new SpriteBatch();
         font = new BitmapFont(Gdx.files.internal("fonts/score_font.fnt"), Gdx.files.internal("fonts/score_font.png"), false);
@@ -128,8 +137,8 @@ public class Game extends com.badlogic.gdx.Game {
 
         playerX = centerX;
         playerY = innerRadius * scaleFactor + playerRadius + centerY;
-        velX = velY = 0;
-        speed = 0.005f;
+        playerVelX = playerVelY = 0;
+        playerSpeed = 0.005f;
 
         onInside = lastLoc =  true;
 
@@ -155,6 +164,54 @@ public class Game extends com.badlogic.gdx.Game {
         highscore = prefs.getInteger(highscorePrefsString, 0);
     }
 
+    private void initShake() {
+        camera.position.x = centerX;
+        camera.position.y = centerY;
+        projectCamera();
+
+        double currentShakeVel = shaking ? Math.sqrt(shakeVelX * shakeVelX + shakeVelY * shakeVelY) : 0;
+        shaking = true;
+        if (currentShakeVel == 0) currentShakeVel = initialShakeVel;
+
+        double shakeVel = currentShakeVel * shakeEnergyLoss;
+        if (shakeVel < minShakeVel) {
+            shaking = false;
+            return;
+        }
+
+        double dir = getRandomRad();
+        shakeVelX = (float)(Math.cos(dir) * shakeVel);
+        shakeVelY = (float)(Math.sin(dir) * shakeVel);
+
+        shakeTime = random.nextFloat() * (maxShakeTime - minShakeTime) + minShakeTime;
+        shakeTimeCounter = 0;
+
+    }
+
+    private void shake(float dt) {
+        if (!shaking) return;
+
+        shakeTimeCounter += dt;
+
+        if (shakeTimeCounter >= shakeTime) initShake();
+        if (!shaking) return;
+
+        camera.position.x += shakeVelX;
+        camera.position.y += shakeVelY;
+        projectCamera();
+    }
+
+    private double getRandomRad() {
+        return random.nextDouble() * Math.PI * 2.0;
+    }
+
+
+    private void projectCamera() {
+        camera.update();
+        sr.setProjectionMatrix(camera.combined);
+        texBatch.setProjectionMatrix(camera.combined);
+    }
+
     public void resume() {
         super.resume();
         Textures.loadTextures();
@@ -166,6 +223,7 @@ public class Game extends com.badlogic.gdx.Game {
         updateProgressBarPercent(dt);
         rotateWorld(dt);
         changeMenuBackgroundAlpha(dt);
+        shake(dt);
 
         float xCenter = Util.getAspectRatio() / 2f;
         float dst = Vector2.dst(xCenter, 0.5f, playerX, playerY);
@@ -179,8 +237,8 @@ public class Game extends com.badlogic.gdx.Game {
             if (Util.justDown() && (onInside || onOutside)) {
                 float dirMul = onInside ? 1 : -1;
 
-                velX = (float) Math.cos(dir) * speed * dirMul;
-                velY = (float) Math.sin(dir) * speed * dirMul;
+                playerVelX = (float) Math.cos(dir) * playerSpeed * dirMul;
+                playerVelY = (float) Math.sin(dir) * playerSpeed * dirMul;
 
                 lastLoc = onInside;
                 onInside = onOutside = false;
@@ -242,8 +300,8 @@ public class Game extends com.badlogic.gdx.Game {
                 if (playing)
                     spawnSpikes(dir);
             } else {
-                playerX += velX * dt;
-                playerY += velY * dt;
+                playerX += playerVelX * dt;
+                playerY += playerVelY * dt;
 
                 float range = unscaledMaxDst - unscaledMinDst;
 
@@ -300,7 +358,7 @@ public class Game extends com.badlogic.gdx.Game {
                     FindAngle: while (true) {
                         if (attempt++ > 25) continue Outer;
 
-                        double spikeAngle = random.nextDouble() * Math.PI * 2.0;
+                        double spikeAngle = getRandomRad();
 
                         float spikeQuad = getAdjustedAngle(spikeAngle, onOutside) / 90f;
                         float edgeDistance = spikeQuad - (int)spikeQuad;
@@ -450,7 +508,9 @@ public class Game extends com.badlogic.gdx.Game {
         progressBarPercent = 0;
         playing = false;
         inMenu = true;
-        coinAngle = random.nextDouble() * Math.PI * 2.0;
+        coinAngle = getRandomRad();
+
+        initShake();
     }
 
     private void rotatePlayer(float degrees) {
@@ -534,7 +594,7 @@ public class Game extends com.badlogic.gdx.Game {
                 score += 5;
 
                 while (true) {
-                    double newCoinAngle = Math.PI * 2.0 * random.nextDouble();
+                    double newCoinAngle = getRandomRad();
 
                     if (Math.abs(newCoinAngle - coinAngle) > 0.4) {
                         coinAngle = newCoinAngle;
