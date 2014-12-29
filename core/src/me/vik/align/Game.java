@@ -13,14 +13,11 @@ import com.badlogic.gdx.math.Vector2;
 
 import java.util.Random;
 
-//TODO: Change texture for leaderboard button, possibly the play button too
-//TODO: The bottoms of the buttons look a little bit cut off, fix this
+//TODO: Add difficulty curve
 
-//TODO: Particle effects on death
+//TODO: Particle effects on death, this might be unnecessary
 //TODO: Player Motion trail
 
-//TODO: Add pause button which is available while playing game
-//TODO: Add way to toggle music while playing game
 //TODO: Think of a better title than 'Align'
 
 //TODO: Add leaderboards
@@ -75,14 +72,14 @@ public class Game extends com.badlogic.gdx.Game {
     private double coinAngle;
     private float plus5X, plus5Y, plus5Alpha = 0, plus5VelX, plus5VelY;
 
-    private boolean playing = false, playedFirstGame = false, inMenu = true;
+    private boolean playing = false, playedFirstGame = false, inMenu = true, paused = false, gameStarted = false;
     private float menuBackgroundAlpha = 1f;
     private float topTextAlpha = 1;
-    private Button[] buttons;
+    private Button[] menuButtons;
 
     private float scaleFactor = 1f, scaleVelocity = 0f, scaleAcceleration =  0.0008f;
 
-    private static final String align = "Align", tapMessage = "Tap to Launch", scoreTitleString = "Score", bestString = "Best";
+    private static final String align = "Align", tapMessage = "Tap to Launch", resumeMessage = "Tap to Resume", scoreTitleString = "Score", bestString = "Best";
 
     public void create() {
         Textures.loadTextures();
@@ -97,14 +94,15 @@ public class Game extends com.badlogic.gdx.Game {
         innerRadius = centerX * 0.3f;
         outerRadius = centerX * 0.9f;
 
-        float buttonRadius = (outerRadius - innerRadius) / 4f;
-        float buttonXOffs = buttonRadius * 2.5f;
-        float buttonY = (innerRadius + outerRadius) / 2f + innerRadius + buttonRadius + buttonXOffs / 4;
+        float menuButtonRadius = (outerRadius - innerRadius) / 4f;
+        float menuButtonX = menuButtonRadius * 2.5f;
+        float range = outerRadius - innerRadius - menuButtonRadius * 2;
+        float menuButtonY = centerY - innerRadius - menuButtonRadius - range / 3f;//(innerRadius + outerRadius) / 2f + innerRadius + buttonRadius + buttonXOffs / 4;
 
-        buttons = new Button[]{
-                new PlayButton(centerX, buttonY, buttonRadius, this),
-                new SoundButton(centerX + buttonXOffs, buttonY, buttonRadius),
-                new LeaderboardButton(centerX - buttonXOffs, buttonY, buttonRadius)
+        menuButtons = new Button[]{
+                new PlayButton(centerX, menuButtonY, menuButtonRadius, this),
+                new SoundButton(centerX + menuButtonX, menuButtonY, menuButtonRadius),
+                new LeaderboardButton(centerX - menuButtonX, menuButtonY, menuButtonRadius)
         };
 
         coinAngle = getRandomRad();
@@ -139,7 +137,7 @@ public class Game extends com.badlogic.gdx.Game {
         playerX = centerX;
         playerY = innerRadius * scaleFactor + playerRadius + centerY;
         playerVelX = playerVelY = 0;
-        playerSpeed = 0.005f * (Gdx.graphics.getWidth() / 480f);
+        playerSpeed = 0.005f;
 
         onInside = lastLoc =  true;
 
@@ -219,8 +217,14 @@ public class Game extends com.badlogic.gdx.Game {
         Textures.loadTextures();
     }
 
+    public void pause() {
+        super.pause();
+        if (playing && gameStarted) paused = true;
+    }
+
     public void render() {
-        float dt = Gdx.graphics.getDeltaTime() * 60f;
+        float unpausedDt = Gdx.graphics.getDeltaTime() * 60f;
+        float dt = paused ? 0 : unpausedDt;
 
         updateProgressBarPercent(dt);
         rotateWorld(dt);
@@ -233,26 +237,28 @@ public class Game extends com.badlogic.gdx.Game {
         double dir = Math.atan2(playerY - 0.5f, playerX - xCenter);
         if (dir < 0) dir += Math.PI * 2.0;
 
-        if (!playing && !inMenu && Util.justDown())
-            play();
+        if (!inMenu) {
+            if (Util.justDown()) {
+                if (paused || Vector2.dst(centerX, centerY, Util.getTouchX(), Util.getTouchY()) < innerRadius) {
+                    paused = !paused;
+                } else if (onInside || onOutside) {
+                    if (!playing) play();
+                    gameStarted = true;
 
-        if (playing) {
-            if (Util.justDown() && (onInside || onOutside)) {
-                float dirMul = onInside ? 1 : -1;
+                    float dirMul = onInside ? 1 : -1;
 
-                playerVelX = (float) Math.cos(dir) * playerSpeed * dirMul;
-                playerVelY = (float) Math.sin(dir) * playerSpeed * dirMul;
+                    playerVelX = (float) Math.cos(dir) * playerSpeed * dirMul;
+                    playerVelY = (float) Math.sin(dir) * playerSpeed * dirMul;
 
-                lastLoc = onInside;
-                onInside = onOutside = false;
+                    lastLoc = onInside;
+                    onInside = onOutside = false;
 
-                Sounds.playRandom(Sounds.jump);
+                    Sounds.playRandom(Sounds.jump);
+                }
             }
-
-            changeButtonAlpha(false, dt);
-        } else {
-            changeButtonAlpha(true, dt);
         }
+        if (playing)  changeButtonAlpha(paused, unpausedDt);
+        else changeButtonAlpha(true, dt);
 
         if (!onInside && !onOutside) {
             final float unscaledMinDst = innerRadius + playerRadius;
@@ -284,7 +290,7 @@ public class Game extends com.badlogic.gdx.Game {
                     lose();
                 } else {
                     progressBarPercent = 0;
-                    setScore(score + 1);
+                    if (playing) setScore(score + 1);
                 }
 
                 int randColIndex = random.nextInt(3);
@@ -527,6 +533,7 @@ public class Game extends com.badlogic.gdx.Game {
         progressBarPercent = 0;
         playing = false;
         inMenu = true;
+        gameStarted = false;
         coinAngle = getRandomRad();
 
         initShake();
@@ -604,7 +611,7 @@ public class Game extends com.badlogic.gdx.Game {
         drawSpikes(outerSpikes, true);
 
         if (playing && score > 0) {
-            sr.setColor(colors[4]);
+            sr.setColor(colors[4].r, colors[4].g, colors[4].b, 1f - topTextAlpha);
             float coinDst = (innerRadius + outerRadius) / 2f * scaleFactor;
             float coinRadius = 0.0125f;
             float coinX = (float) (Math.cos(coinAngle) * coinDst + centerX);
@@ -638,11 +645,23 @@ public class Game extends com.badlogic.gdx.Game {
         }
         sr.end();
 
+        if (!inMenu) {
+            float sizeReduce = innerRadius / 2f;
+            float size = innerRadius * 2f - sizeReduce;
+
+            float pauseAlpha = paused ?  0.9f * topTextAlpha: 0.1f * (1 - menuBackgroundAlpha);
+
+            texBatch.begin();
+            texBatch.setColor(colors[4].r, colors[4].g, colors[4].b, pauseAlpha);
+            texBatch.draw(Textures.pause, centerX - innerRadius + sizeReduce / 2f, centerY - innerRadius + sizeReduce / 2f, size, size);
+            texBatch.end();
+        }
+
         fontBatch.begin();
         font.setColor(colors[4].r, colors[4].g, colors[4].b, 1 - menuBackgroundAlpha);
-        font.setScale(0.7f * (Gdx.graphics.getWidth() / 800f));
+        font.setScale(0.07f * Gdx.graphics.getHeight() / 128f);
         BitmapFont.TextBounds bounds = font.getBounds(scoreString);
-        font.draw(fontBatch, scoreString, (Gdx.graphics.getWidth() - bounds.width) / 2, (Gdx.graphics.getHeight() + bounds.height) / 2);
+        if (!paused) font.draw(fontBatch, scoreString, (Gdx.graphics.getWidth() - bounds.width) / 2, (Gdx.graphics.getHeight() + bounds.height) / 2);
         font.setColor(colors[4].r, colors[4].g, colors[4].b, plus5Alpha);
         font.draw(fontBatch, "+5", plus5X * Gdx.graphics.getWidth(), plus5Y * Gdx.graphics.getHeight());
         fontBatch.end();
@@ -659,7 +678,11 @@ public class Game extends com.badlogic.gdx.Game {
         fontBatch.begin();
 
         if (topTextAlpha > 0) {
-            String msg = inMenu ? align : tapMessage;
+            String msg;
+
+            if (inMenu) msg = align;
+            else if (paused || gameStarted) msg = resumeMessage;
+            else msg = tapMessage;
 
             fontBatch.setColor(1, 1, 1, topTextAlpha);
             font.setColor(colors[4].r, colors[4].g, colors[4].b, topTextAlpha);
@@ -667,13 +690,12 @@ public class Game extends com.badlogic.gdx.Game {
             font.draw(fontBatch, msg, (Gdx.graphics.getWidth() - bounds.width) / 2, (outerRadius + 0.5f) * Gdx.graphics.getHeight() - bounds.height * 1.75f);
 
             if (playedFirstGame) {
-                final float scoreStringScaleFactor = -0.225f;
-                font.scale(scoreStringScaleFactor);
+                font.setScale(0.045f * Gdx.graphics.getHeight() / 128f);
 
                 font.setColor(colors[4].r, colors[4].g, colors[4].b, menuBackgroundAlpha);
                 bounds = font.getBounds(bestString);
-                final float bestYSeperation = bounds.height * 0.075f;
-                float yOffs = bounds.height * 1.5f + bestYSeperation;
+                final float bestYSeperation = bounds.height * 0.1f;
+                float yOffs = bounds.height * 1f + bestYSeperation;
                 float yPos = Gdx.graphics.getHeight() / 2f + yOffs * 2;
                 font.draw(fontBatch, bestString, (Gdx.graphics.getWidth() - bounds.width) / 2, yPos);
 
@@ -688,8 +710,6 @@ public class Game extends com.badlogic.gdx.Game {
                 bounds = font.getBounds(scoreString);
                 yPos -= yOffs;
                 font.draw(fontBatch, scoreString, (Gdx.graphics.getWidth() - bounds.width) / 2, yPos);
-
-                font.scale(-scoreStringScaleFactor);
             }
         }
 
@@ -700,8 +720,8 @@ public class Game extends com.badlogic.gdx.Game {
         if (menuBackgroundAlpha > 0) {
             texBatch.setColor(1, 1, 1, menuBackgroundAlpha);
 
-            for (int i = 0; i < buttons.length; i++)
-                 buttons[i].updateAndRender(texBatch, dt, menuBackgroundAlpha == 1 && inMenu);
+            for (int i = 0; i < menuButtons.length; i++)
+                 menuButtons[i].updateAndRender(texBatch, dt, menuBackgroundAlpha == 1 && inMenu);
         }
 
         texBatch.end();

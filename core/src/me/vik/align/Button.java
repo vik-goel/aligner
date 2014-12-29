@@ -25,8 +25,8 @@ public abstract class Button {
     //pre-condition: batch has begun drawing
     public void updateAndRender(SpriteBatch batch, float dt, boolean acceptsInput) {
         //Converting screen coordinates into normalized coordinates
-        float touchX = Gdx.input.getX() / (float)Gdx.graphics.getHeight();
-        float touchY = 1f - Gdx.input.getY() / (float)Gdx.graphics.getHeight();
+        float touchX = Util.getTouchX();
+        float touchY = Util.getTouchY();
         boolean touchedWithinRadius = Vector2.dst(x, y, touchX, touchY) <= radius;
         boolean justHitSpace = acceptsSpace && Gdx.input.isKeyJustPressed(Input.Keys.SPACE);
         boolean spaceDown = acceptsSpace && Gdx.input.isKeyPressed(Input.Keys.SPACE);

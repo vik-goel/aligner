@@ -25,4 +25,12 @@ public class Util {
         return (Gdx.input.justTouched() || Gdx.input.isKeyJustPressed(Input.Keys.SPACE));
     }
 
+    public static float getTouchX() {
+        return Gdx.input.getX() / (float)Gdx.graphics.getHeight();
+    }
+
+    public static float getTouchY() {
+        return 1f - Gdx.input.getY() / (float)Gdx.graphics.getHeight();
+    }
+
 }
