@@ -1,6 +1,7 @@
 package me.vik.align;
 
 import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.Input;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.math.Vector2;
@@ -11,6 +12,8 @@ public abstract class Button {
     private float renderRadius, radiusVelocity = 0f, radiusAcceleration = -0.001f;
     private boolean selected = false;
     protected Texture texture;
+    protected boolean acceptsSpace = false;
+    private boolean spaceWasDown = false;
 
     protected Button(float x, float y, float radius, Texture texture) {
         this.x = x;
@@ -20,26 +23,31 @@ public abstract class Button {
     }
 
     //pre-condition: batch has begun drawing
-    public void updateAndRender(SpriteBatch batch, float dt, boolean acceptInput) {
+    public void updateAndRender(SpriteBatch batch, float dt, boolean acceptsInput) {
         //Converting screen coordinates into normalized coordinates
         float touchX = Gdx.input.getX() / (float)Gdx.graphics.getHeight();
         float touchY = 1f - Gdx.input.getY() / (float)Gdx.graphics.getHeight();
         boolean touchedWithinRadius = Vector2.dst(x, y, touchX, touchY) <= radius;
+        boolean justHitSpace = acceptsSpace && Gdx.input.isKeyJustPressed(Input.Keys.SPACE);
+        boolean spaceDown = acceptsSpace && Gdx.input.isKeyPressed(Input.Keys.SPACE);
 
-        if (Gdx.input.justTouched() && acceptInput) {
+        if ((Gdx.input.justTouched() || justHitSpace) && acceptsInput) {
             if (radiusAcceleration > 0) radiusAcceleration *= -1;
-            selected = touchedWithinRadius;
+            selected = touchedWithinRadius || justHitSpace;
         }
 
-        if (selected) {
-            if (!touchedWithinRadius) deselect();
+        if (selected && !spaceDown) {
+            if (!touchedWithinRadius && !spaceWasDown) deselect();
             else if (!Gdx.input.isTouched()) {
                 deselect();
                 onClick();
+                Sounds.playRandom(Sounds.button);
             }
         }
 
-        if (!acceptInput) deselect();
+        spaceWasDown = spaceDown;
+
+        if (!acceptsInput) deselect();
 
         if (selected || renderRadius != radius) {
             radiusVelocity += radiusAcceleration;
@@ -70,6 +78,7 @@ class PlayButton extends Button {
     PlayButton(float x, float y, float radius, Game game) {
         super(x, y, radius, Textures.play);
         this.game = game;
+        acceptsSpace = true;
     }
 
     protected void onClick() {
