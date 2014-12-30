@@ -102,12 +102,18 @@ class SoundButton extends Button {
 }
 
 class LeaderboardButton extends Button {
+    private MyLeaderboard leaderboard;
+
     LeaderboardButton(float x, float y, float radius) {
         super(x, y, radius, Textures.leaderboard);
     }
 
-    protected void onClick() {
+    public void setLeaderboard(MyLeaderboard leaderboard) {
+        this.leaderboard = leaderboard;
+    }
 
+    protected void onClick() {
+        if (leaderboard != null) leaderboard.show();
     }
 }
 

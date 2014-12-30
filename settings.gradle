@@ -1,1 +1,2 @@
+include ':google-play-service_lib'
 include 'desktop', 'android', 'html', 'core'

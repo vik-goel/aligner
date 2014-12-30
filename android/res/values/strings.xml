@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
-    <string name="app_name">Align</string>
+    <string name="app_name">Aligner</string>
+    <string name="app_id">554066003682</string>
 
 </resources>
