@@ -5,12 +5,11 @@ import com.badlogic.gdx.graphics.Texture;
 
 public class Textures {
 
-    public static Texture play, soundOn, soundOff, leaderboard, pause;
+    public static Texture soundOn, soundOff, leaderboard, pause;
 
     private Textures() {}
 
     public static void loadTextures() {
-        play = createTexture("play.png");
         soundOff = createTexture("sound off.png");
         soundOn = createTexture("sound on.png");
         leaderboard = createTexture("leaderboard.png");

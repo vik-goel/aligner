@@ -22,9 +22,7 @@ public abstract class Button {
         this.texture = texture;
     }
 
-    //pre-condition: batch has begun drawing
-    public void updateAndRender(SpriteBatch batch, float dt, boolean acceptsInput) {
-        //Converting screen coordinates into normalized coordinates
+    public boolean update(float dt, boolean acceptsInput) {
         float touchX = Util.getTouchX();
         float touchY = Util.getTouchY();
         boolean touchedWithinRadius = Vector2.dst(x, y, touchX, touchY) <= radius;
@@ -41,7 +39,7 @@ public abstract class Button {
             else if (!Gdx.input.isTouched()) {
                 deselect();
                 onClick();
-                Sounds.playRandom(Sounds.button);
+                Sounds.play(Sounds.button);
             }
         }
 
@@ -59,6 +57,11 @@ public abstract class Button {
         if (renderRadius > radius) renderRadius = radius;
         else if (renderRadius < minRadius) renderRadius = minRadius;
 
+        return selected;
+    }
+
+    //pre-condition: batch has begun drawing
+    public void render(SpriteBatch batch) {
         batch.draw(texture, x - renderRadius, y - renderRadius, renderRadius * 2, renderRadius * 2);
     }
 
@@ -69,21 +72,6 @@ public abstract class Button {
     }
 
     protected abstract void onClick();
-}
-
-class PlayButton extends Button {
-
-    private Game game;
-
-    PlayButton(float x, float y, float radius, Game game) {
-        super(x, y, radius, Textures.play);
-        this.game = game;
-        acceptsSpace = true;
-    }
-
-    protected void onClick() {
-        game.play();
-    }
 }
 
 class SoundButton extends Button {

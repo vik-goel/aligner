@@ -7,6 +7,7 @@ import android.widget.RelativeLayout;
 
 import com.badlogic.gdx.backends.android.AndroidApplication;
 import com.badlogic.gdx.backends.android.AndroidApplicationConfiguration;
+import com.google.android.gms.ads.AdListener;
 import com.google.android.gms.ads.AdRequest;
 import com.google.android.gms.ads.AdSize;
 import com.google.android.gms.ads.AdView;
@@ -17,8 +18,9 @@ public class AndroidLauncher extends AndroidApplication {
 
     private static final String TOP_AD_UNIT_ID = "ca-app-pub-3934076033972627/3629436992";
     private static final String BOTTOM_AD_UNIT_ID = "ca-app-pub-3934076033972627/3489836197";
-    protected AdView topAdView, bottomAdView;
+    protected AdView  bottomAdView;
     protected View gameView;
+    private Game game;
 
     private AndroidLeaderboard leaderboard;
 
@@ -30,30 +32,27 @@ public class AndroidLauncher extends AndroidApplication {
         config.useAccelerometer = config.useCompass = false;
         config.hideStatusBar = false;
 
-        // Do the stuff that initialize() would do for you
-        /*requestWindowFeature(Window.FEATURE_NO_TITLE);
-        getWindow().setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN, WindowManager.LayoutParams.FLAG_FULLSCREEN);
-        getWindow().clearFlags(WindowManager.LayoutParams.FLAG_FORCE_NOT_FULLSCREEN);*/
-
         leaderboard = new AndroidLeaderboard(this);
 
         RelativeLayout layout = new RelativeLayout(this);
         RelativeLayout.LayoutParams params = new RelativeLayout.LayoutParams(RelativeLayout.LayoutParams.MATCH_PARENT, RelativeLayout.LayoutParams.MATCH_PARENT);
         layout.setLayoutParams(params);
 
-        topAdView = new AdView(this);
         bottomAdView = new AdView(this);
 
-        AdView topView = createAdView(topAdView, true);
-        layout.addView(topView);
         AdView bottomView = createAdView(bottomAdView, false);
         layout.addView(bottomView);
         View gameView = createGameView(config);
         layout.addView(gameView);
 
+        bottomAdView.setAdListener(new AdListener() {
+            public void onAdOpened() {
+                super.onAdOpened();
+                game.pause();
+            }
+        });
 
         setContentView(layout);
-        startAdvertising(topView);
         startAdvertising(bottomView);
     }
 
@@ -72,13 +71,13 @@ public class AndroidLauncher extends AndroidApplication {
     }
 
     private View createGameView(AndroidApplicationConfiguration config) {
-        Game game = new Game();
+        game = new Game();
         game.setLeaderboard(leaderboard);
 
         gameView = initializeForView(game, config);
         RelativeLayout.LayoutParams params = new RelativeLayout.LayoutParams(RelativeLayout.LayoutParams.MATCH_PARENT, RelativeLayout.LayoutParams.WRAP_CONTENT);
         params.addRule(RelativeLayout.CENTER_HORIZONTAL, RelativeLayout.TRUE);
-        params.addRule(RelativeLayout.BELOW, topAdView.getId());
+        params.addRule(RelativeLayout.ALIGN_PARENT_TOP, RelativeLayout.TRUE);
         params.addRule(RelativeLayout.ABOVE, bottomAdView.getId());
         gameView.setLayoutParams(params);
         return gameView;
@@ -96,11 +95,11 @@ public class AndroidLauncher extends AndroidApplication {
 
     public void onResume() {
         super.onResume();
-        if (topAdView != null) topAdView.resume();
+        if (bottomAdView != null) bottomAdView.resume();
     }
 
     public void onPause() {
-        if (topAdView != null) topAdView.pause();
+        if (bottomAdView != null) bottomAdView.pause();
         super.onPause();
     }
 
@@ -110,7 +109,7 @@ public class AndroidLauncher extends AndroidApplication {
     }
 
     public void onDestroy() {
-        if (topAdView != null) topAdView.destroy();
+        if (bottomAdView != null) bottomAdView.destroy();
         super.onDestroy();
     }
 

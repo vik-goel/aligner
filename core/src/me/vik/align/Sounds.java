@@ -8,7 +8,8 @@ import java.util.Random;
 
 public class Sounds {
 
-    public static Sound[] jump, coin, button, lose;
+    public static Sound[] lose;
+    public static Sound jump, coin, button;
 
     private static boolean enabled;
     private static boolean initialized = false;
@@ -37,15 +38,21 @@ public class Sounds {
         Preferences prefs = Gdx.app.getPreferences(Game.fileOutputName);
         enabled = prefs.getBoolean(prefsString, true);
 
-        jump = loadSounds("jump", 5);
-        coin = loadSounds("coin", 3);
-        button = loadSounds("button", 3);
+        jump = loadSound("jump");
+        coin = loadSound("coin");
+        button = loadSound("button");
         lose = loadSounds("lose", 3);
     }
 
-    public static void playRandom(Sound[] sounds) {
+    public static void play(Sound[] sounds) {
         if (isEnabled()) {
             sounds[random.nextInt(sounds.length)].play();
+        }
+    }
+
+    public static void play(Sound sound) {
+        if (isEnabled()) {
+            sound.play();
         }
     }
 
@@ -53,9 +60,13 @@ public class Sounds {
         Sound[] sounds = new Sound[numSounds];
 
         for (int i = 0; i < numSounds; i++)
-            sounds[i] = Gdx.audio.newSound(Gdx.files.internal("sounds/" + prefix + i + ".wav"));
+            sounds[i] = loadSound(prefix + i);
 
         return sounds;
+    }
+
+    private static Sound loadSound(String fileName) {
+        return Gdx.audio.newSound(Gdx.files.internal("sounds/" + fileName + ".wav"));
     }
 
 }
