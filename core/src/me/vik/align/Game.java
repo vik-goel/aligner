@@ -19,27 +19,25 @@ import java.util.Random;
 //TODO: Test to see that game name has changed
 
 //TODO: Particle effects on death, this might be unnecessary
-//TODO: Player Motion trail, this might be unnecessaryF
+//TODO: Player Motion trail, this might be unnecessary
 
 //TODO: Tutorial
-//TODO: Add music button and music
+//TODO: Better music?
 //TODO: Add achievements
 //TODO: Fix leaderboards on release builds
-//TODO: Try to reduce startup time, if not possible add splash screen
+//TODO: Try to reduce startup time, if not possible add a splash screen
 
 public class Game extends com.badlogic.gdx.Game {
 
     private static final Color[] colors = {
-        //Tried making colours brighter -> more contrast, darker versions are commented out
-        Util.getColor(166, 255, 122),//Util.getColor(197, 255, 139),//Util.getColor(153, 255, 102), //green
-        Util.getColor(166, 217, 255),//Util.getColor(197, 236, 255),//Util.getColor(153, 204, 255), //blue
-        Util.getColor(255, 255, 122),//Util.getColor(255, 255, 139),//Util.getColor(255, 255, 102), //yellow
-        Util.getColor(255, 166, 217),//Util.getColor(255, 197, 236),//.getColor(255, 153, 204), //pink
-        Util.getColor(220, 172, 255) //Util.getColor(237, 203, 255) //Util.getColor(207, 159, 255)  //purple
+        Util.getColor(166, 255, 122),//green
+        Util.getColor(166, 217, 255),//blue
+        Util.getColor(255, 255, 122),//yellow
+        Util.getColor(255, 166, 217),//pink
+        Util.getColor(220, 172, 255) //purple
     };
 
     public static final String fileOutputName = "me.vik.align";
-
     private String[] intStrings;
     private int score, highscore;
     private String scoreString, highscoreString;
@@ -48,20 +46,15 @@ public class Game extends com.badlogic.gdx.Game {
     private OrthographicCamera camera;
     private boolean shaking = false;
     private float shakeVelX = 0, shakeVelY = 0;
-    private float minShakeVel = 0.004f, initialShakeVel = 0.0125f, shakeEnergyLoss = 0.85f;
     private float shakeTime = 0, shakeTimeCounter = 0;
-    private float minShakeTime = 1, maxShakeTime = 3;
 
     private ShapeRenderer sr;
     private SpriteBatch fontBatch, texBatch;
     private BitmapFont font;
     private Random random = new Random();
 
-    private float progressBarPercent;
-    private float innerRotation, outerRotation;
-
     private float playerX, playerY;
-    private float playerVelX, playerVelY, playerSpeed;
+    private float playerVelX = 0, playerVelY = 0;
     private Color playerColor = colors[0];
     private int playerColorIndex = 0;
     private float playerRadius = 0.025f;
@@ -70,28 +63,33 @@ public class Game extends com.badlogic.gdx.Game {
     private float innerRadius;
     private float outerRadius;
     private float centerX, centerY;
+    private float progressBarPercent = 0f;
+    private float innerRotation = 0f, outerRotation = 0f;
+
+    private boolean playing = false, playedFirstGame = false, paused = false, gameStarted = false;
+    private float buttonAlpha = 1f, topTextAlpha = 1f;
+    private Button[] buttons;
 
     //TODO: Might be able to combine these two arrays
-    private Spike[] innerSpikes, outerSpikes;
     private Vector2[] spikeBuffer = new Vector2[]{new Vector2(), new Vector2(), new Vector2()};
+    private Spike[] innerSpikes, outerSpikes;
 
     private double coinAngle;
     private float plus2X, plus2Y, plus2Alpha = 0, plus2VelX, plus2VelY;
 
-    private boolean playing = false, playedFirstGame = false, paused = false, gameStarted = false;
-    private float buttonAlpha = 1f;
-    private float topTextAlpha = 1f;
-    private Button[] buttons;
+    private float scaleFactor = 1f, scaleVelocity = 0f;
 
-    private float scaleFactor = 1f, scaleVelocity = 0f, scaleAcceleration =  0.0008f;
-
-    private static final String tapMessage = "Tap to Launch", resumeMessage = "Tap to Resume", scoreTitleString = "Score", bestString = "Best";
+    private String tapMessage, resumeMessage, scoreTitleString = "Score", bestString = "Best";
 
     private MyLeaderboard leaderboard;
+    private boolean startedLeaderboard = false;
 
     public void create() {
         Textures.loadTextures();
         Sounds.init();
+
+        tapMessage = Util.onMobile() ? "Tap to Launch" : "Click to Launch";
+        resumeMessage  = Util.onMobile() ? "Tap to Resume" : "Click to Resume";
 
         intStrings = new String[1000];
         for (int i = 0; i < intStrings.length; i++)
@@ -105,15 +103,23 @@ public class Game extends com.badlogic.gdx.Game {
         float buttonRadius = (outerRadius - innerRadius) / 3.5f;
         float buttonX = buttonRadius * 1.25f;
         float range = outerRadius - innerRadius - buttonRadius * 2;
-        float buttonY = centerY - innerRadius - buttonRadius - range / 3f;//(innerRadius + outerRadius) / 2f + innerRadius + buttonRadius + buttonXOffs / 4;
+        float buttonY = centerY - innerRadius - buttonRadius - range / 4f;
 
-        LeaderboardButton leaderboardButton = new LeaderboardButton(centerX - buttonX, buttonY, buttonRadius);
-        leaderboardButton.setLeaderboard(leaderboard);
+        if (leaderboard == null) {
+            buttons = new Button[] {
+                    new SoundButton(centerX - buttonX, buttonY, buttonRadius),
+                    new MusicButton(centerX + buttonX, buttonY, buttonRadius),
+            };
+        } else {
+            LeaderboardButton leaderboardButton = new LeaderboardButton(centerX - buttonX * 2f, buttonY, buttonRadius);
+            leaderboardButton.setLeaderboard(leaderboard);
 
-        buttons = new Button[]{
-                new SoundButton(centerX + buttonX, buttonY, buttonRadius),
-                leaderboardButton
-        };
+            buttons = new Button[]{
+                    new SoundButton(centerX, buttonY, buttonRadius),
+                    leaderboardButton,
+                    new MusicButton(centerX + buttonX * 2f, buttonY, buttonRadius)
+            };
+        }
 
         coinAngle = getRandomRad();
 
@@ -138,16 +144,10 @@ public class Game extends com.badlogic.gdx.Game {
         font = new BitmapFont(Gdx.files.internal("fonts/AgencyFB.fnt"), Gdx.files.internal("fonts/AgencyFB.png"), false);
         font.getRegion().getTexture().setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
 
-        progressBarPercent = 0;
-        innerRotation = 0;
-        outerRotation = 0;
-
         setScore(0);
 
         playerX = centerX;
         playerY = innerRadius * scaleFactor + playerRadius + centerY;
-        playerVelX = playerVelY = 0;
-        playerSpeed = 0.00625f;
 
         onInside = lastLoc =  true;
 
@@ -183,6 +183,9 @@ public class Game extends com.badlogic.gdx.Game {
     }
 
     private void initShake() {
+        final float minShakeVel = 0.004f, initialShakeVel = 0.0125f, shakeEnergyLoss = 0.85f;
+        final float minShakeTime = 1, maxShakeTime = 3;
+
         camera.position.x = centerX;
         camera.position.y = centerY;
         projectCamera();
@@ -277,6 +280,8 @@ public class Game extends com.badlogic.gdx.Game {
 
                 float dirMul = onInside ? 1 : -1;
 
+                final float playerSpeed = 0.00625f;
+
                 playerVelX = (float) Math.cos(dir) * playerSpeed * dirMul;
                 playerVelY = (float) Math.sin(dir) * playerSpeed * dirMul;
 
@@ -345,6 +350,8 @@ public class Game extends com.badlogic.gdx.Game {
                 boolean shouldIncreaseScale = lastLoc ? dst - unscaledMinDst < range / 2.5f :
                                                         dst - unscaledMinDst >= range - range / 2.5f ;
 
+                final float scaleAcceleration =  0.0008f;
+
                 if (shouldIncreaseScale) {
                     if (scaleVelocity < 0) scaleVelocity = 0;
                     scaleVelocity += scaleAcceleration;
@@ -369,6 +376,11 @@ public class Game extends com.badlogic.gdx.Game {
         changeSpikeProtrusions(innerSpikes, dt);
         changeSpikeProtrusions(outerSpikes, dt);
         drawScreen();
+
+        if (!startedLeaderboard) {
+            startedLeaderboard = true;
+            if (leaderboard != null) leaderboard.start();
+        }
     }
 
     private void setScore(int score) {
@@ -567,15 +579,15 @@ public class Game extends com.badlogic.gdx.Game {
             if (leaderboard != null) leaderboard.publishHighscore(highscore);
         }
 
-        //TODO: Clean up duplicated code
-        for (int k = 0; k < innerSpikes.length; k++) {
-            innerSpikes[k].collidable = false;
-            innerSpikes[k].movingIn = true;
+        //TODO: Clean up duplicated code, maybe by just combining the two arrays
+        for (int i = 0; i < innerSpikes.length; i++) {
+            innerSpikes[i].collidable = false;
+            innerSpikes[i].movingIn = true;
         }
 
-        for (int k = 0; k < outerSpikes.length; k++) {
-            outerSpikes[k].collidable = false;
-            outerSpikes[k].movingIn = true;
+        for (int i = 0; i < outerSpikes.length; i++) {
+            outerSpikes[i].collidable = false;
+            outerSpikes[i].movingIn = true;
         }
 
         scaleFactor = 1;
@@ -782,9 +794,9 @@ public class Game extends com.badlogic.gdx.Game {
             if (!spikes[i].active)
                 continue;
 
-            final float sideLength = /*0.0275f*/ 0.05f * (float)spikes[i].protrudePercent;
+            final float sideLength = 0.05f * (float)spikes[i].protrudePercent;
 
-            float spikeOffs = outside ? /*0.022f*/ 0.045f : 0.008f;
+            float spikeOffs = outside ? 0.045f : 0.008f;
             spikeOffs *= spikes[i].protrudePercent;
 
             float spike0YOffs = outside ? -sideLength : 0;

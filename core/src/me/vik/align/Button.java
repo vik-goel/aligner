@@ -77,15 +77,30 @@ public abstract class Button {
 class SoundButton extends Button {
 
     SoundButton(float x, float y, float radius) {
-        super(x, y, radius, Sounds.isEnabled() ? Textures.soundOn : Textures.soundOff);
+        super(x, y, radius, Sounds.isSoundEnabled() ? Textures.soundOn : Textures.soundOff);
     }
 
     protected void onClick() {
-        Sounds.toggleEnabled();
+        Sounds.toggleSoundEnabled();
 
-        if (Sounds.isEnabled())
+        if (Sounds.isSoundEnabled())
             texture = Textures.soundOn;
         else texture = Textures.soundOff;
+    }
+}
+
+class MusicButton extends Button {
+
+    MusicButton(float x, float y, float radius) {
+        super(x, y, radius, Sounds.isMusicEnabled() ? Textures.musicOn : Textures.musicOff);
+    }
+
+    protected void onClick() {
+        Sounds.toggleMusicEnabled();
+
+        if (Sounds.isMusicEnabled())
+            texture = Textures.musicOn;
+        else texture = Textures.musicOff;
     }
 }
 

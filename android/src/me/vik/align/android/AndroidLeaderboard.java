@@ -58,10 +58,11 @@ public class AndroidLeaderboard implements MyLeaderboard {
 			Games.Leaderboards.submitScore(gameHelper.getApiClient(), LEADERBOARD_ID, highscore);
 	}
 
-	public void onStart() {
+	public void start() {
         initialSignin = true;
 		loginGPGS();
 	}
+
     public void onStop() {
         gameHelper.onStop();
     }

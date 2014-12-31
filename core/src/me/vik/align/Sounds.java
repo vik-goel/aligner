@@ -2,6 +2,7 @@ package me.vik.align;
 
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Preferences;
+import com.badlogic.gdx.audio.Music;
 import com.badlogic.gdx.audio.Sound;
 
 import java.util.Random;
@@ -11,24 +12,43 @@ public class Sounds {
     public static Sound[] lose;
     public static Sound jump, coin, button;
 
-    private static boolean enabled;
+    private static Music backgroundMusic;
+
+    private static boolean soundEnabled, musicEnabled;
     private static boolean initialized = false;
-    private static final String prefsString = "soundEnabled";
+    private static final String soundPrefsString = "soundEnabled", musicPrefsString = "musicEnabled";
 
     private static final Random random = new Random();
 
-    public static void toggleEnabled() {
+    public static void toggleSoundEnabled() {
         assert(!initialized);
-        enabled = !enabled;
+        soundEnabled = !soundEnabled;
 
         Preferences prefs = Gdx.app.getPreferences(Game.fileOutputName);
-        prefs.putBoolean(prefsString, enabled);
+        prefs.putBoolean(soundPrefsString, soundEnabled);
         prefs.flush();
     }
 
-    public static boolean isEnabled() {
+    public static boolean isSoundEnabled() {
         assert(!initialized);
-        return enabled;
+        return soundEnabled;
+    }
+
+    public static void toggleMusicEnabled() {
+        assert(!initialized);
+        musicEnabled = !musicEnabled;
+
+        if (musicEnabled) backgroundMusic.play();
+        else backgroundMusic.stop();
+
+        Preferences prefs = Gdx.app.getPreferences(Game.fileOutputName);
+        prefs.putBoolean(musicPrefsString, musicEnabled);
+        prefs.flush();
+    }
+
+    public static boolean isMusicEnabled() {
+        assert(!initialized);
+        return musicEnabled;
     }
 
     public static void init() {
@@ -36,22 +56,25 @@ public class Sounds {
         initialized = true;
 
         Preferences prefs = Gdx.app.getPreferences(Game.fileOutputName);
-        enabled = prefs.getBoolean(prefsString, true);
+        soundEnabled = prefs.getBoolean(soundPrefsString, true);
+        musicEnabled = prefs.getBoolean(musicPrefsString, true);
 
         jump = loadSound("jump");
         coin = loadSound("coin");
         button = loadSound("button");
         lose = loadSounds("lose", 3);
+
+        backgroundMusic = Gdx.audio.newMusic(Gdx.files.internal("sounds/background music.ogg"));
+        backgroundMusic.setLooping(true);
+        if (musicEnabled) backgroundMusic.play();
     }
 
     public static void play(Sound[] sounds) {
-        if (isEnabled()) {
-            sounds[random.nextInt(sounds.length)].play();
-        }
+        play(sounds[random.nextInt(sounds.length)]);
     }
 
     public static void play(Sound sound) {
-        if (isEnabled()) {
+        if (isSoundEnabled()) {
             sound.play();
         }
     }

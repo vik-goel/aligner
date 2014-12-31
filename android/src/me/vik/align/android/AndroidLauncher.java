@@ -80,17 +80,13 @@ public class AndroidLauncher extends AndroidApplication {
         params.addRule(RelativeLayout.ALIGN_PARENT_TOP, RelativeLayout.TRUE);
         params.addRule(RelativeLayout.ABOVE, bottomAdView.getId());
         gameView.setLayoutParams(params);
+
         return gameView;
     }
 
     private void startAdvertising(AdView adView) {
         AdRequest adRequest = new AdRequest.Builder().addTestDevice("203CB223AF17C67A86D9826D47229C56").build();
         adView.loadAd(adRequest);
-    }
-
-    public void onStart() {
-        super.onStart();
-        leaderboard.onStart();
     }
 
     public void onResume() {
