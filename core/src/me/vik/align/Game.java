@@ -15,8 +15,7 @@ import com.badlogic.gdx.math.Vector2;
 import java.util.Random;
 
 //TODO: Change ad id`s
-//TODO: Game icon
-//TODO: Test to see that game name has changed
+//TODO: Better game name
 
 //TODO: Particle effects on death, this might be unnecessary
 //TODO: Player Motion trail, this might be unnecessary
@@ -24,7 +23,7 @@ import java.util.Random;
 //TODO: Tutorial
 //TODO: Better music?
 //TODO: Add achievements
-//TODO: Fix leaderboards on release builds
+//TODO: Test leaderboards on release builds
 //TODO: Try to reduce startup time, if not possible add a splash screen
 
 public class Game extends com.badlogic.gdx.Game {

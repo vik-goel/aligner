@@ -1,6 +1,7 @@
 package me.vik.align.android;
 
 import android.app.Activity;
+import android.content.Intent;
 import android.util.Log;
 
 import com.google.android.gms.games.Games;
@@ -46,7 +47,7 @@ public class AndroidLeaderboard implements MyLeaderboard {
 				publishHighscore(highscore);
 
 			activity.startActivityForResult(Games.Leaderboards.getLeaderboardIntent(gameHelper.getApiClient(), LEADERBOARD_ID), 9002);
-		} else if (!gameHelper.isConnecting()) {
+		} else { //TODO: Ensure loginGPGS is called when necessary here
 			loginGPGS();
 		}
 	}
@@ -77,5 +78,17 @@ public class AndroidLeaderboard implements MyLeaderboard {
         } catch (final Exception ex) {
         }
     }
+
+    public void onActivityResult(final int requestCode, final int responseCode, final Intent intent) {
+        try {
+            activity.runOnUiThread(new Runnable() {
+                public void run() {
+                    gameHelper.onActivityResult(requestCode, responseCode, intent);
+                }
+            });
+        } catch (final Exception ex) {
+        }
+    }
+
 
 }

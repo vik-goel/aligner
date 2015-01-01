@@ -1,5 +1,6 @@
 package me.vik.align.android;
 
+import android.content.Intent;
 import android.graphics.Color;
 import android.os.Bundle;
 import android.view.View;
@@ -107,6 +108,11 @@ public class AndroidLauncher extends AndroidApplication {
     public void onDestroy() {
         if (bottomAdView != null) bottomAdView.destroy();
         super.onDestroy();
+    }
+
+    public void onActivityResult(int requestCode, int responseCode, Intent intent) {
+        super.onActivityResult(requestCode, responseCode, intent);
+        leaderboard.onActivityResult(requestCode, responseCode, intent);
     }
 
 }
