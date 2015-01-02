@@ -5,7 +5,7 @@ import com.badlogic.gdx.graphics.Texture;
 
 public class Textures {
 
-    public static Texture soundOn, soundOff, musicOn, musicOff, leaderboard, pause;
+    public static Texture soundOn, soundOff, musicOn, musicOff, leaderboard, pause, arrow;
 
     private Textures() {}
 
@@ -16,6 +16,7 @@ public class Textures {
         musicOn = createTexture("music on.png");
         leaderboard = createTexture("leaderboard.png");
         pause = createTexture("pause.png");
+        arrow = createTexture("arrow.png");
     }
 
     private static Texture createTexture(String fileName) {

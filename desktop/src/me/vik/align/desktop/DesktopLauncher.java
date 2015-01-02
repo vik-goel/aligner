@@ -12,7 +12,7 @@ public class DesktopLauncher {
         config.height = 800;
         config.width = 480;
         config.samples = 4;
-        config.title = "Align";
+        config.title = "Aligner";
         config.foregroundFPS = 60;
         config.backgroundFPS = -1;
         config.resizable = false;

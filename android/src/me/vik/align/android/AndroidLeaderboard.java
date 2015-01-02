@@ -80,14 +80,7 @@ public class AndroidLeaderboard implements MyLeaderboard {
     }
 
     public void onActivityResult(final int requestCode, final int responseCode, final Intent intent) {
-        try {
-            activity.runOnUiThread(new Runnable() {
-                public void run() {
-                    gameHelper.onActivityResult(requestCode, responseCode, intent);
-                }
-            });
-        } catch (final Exception ex) {
-        }
+         gameHelper.onActivityResult(requestCode, responseCode, intent);
     }
 
 
