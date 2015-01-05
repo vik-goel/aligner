@@ -69,8 +69,12 @@ public class Game extends com.badlogic.gdx.Game {
     private float buttonAlpha = 1f, topTextAlpha = 1f;
     private Button[] buttons;
 
+    private Vector2[] spikeBuffer = new Vector2[]{
+            new Vector2(), new Vector2(), new Vector2(),
+            new Vector2(), new Vector2(), new Vector2()
+    };
+
     //TODO: Might be able to combine these two arrays
-    private Vector2[] spikeBuffer = new Vector2[]{new Vector2(), new Vector2(), new Vector2()};
     private Spike[] innerSpikes, outerSpikes;
 
     private double coinAngle;
@@ -160,14 +164,6 @@ public class Game extends com.badlogic.gdx.Game {
         spawnSpikes(playerDirRad);
         onOutside = false;
         spawnSpikes(playerDirRad);
-
-        for (int i = 0; i < innerSpikes.length; i++) {
-            innerSpikes[i].protrudePercent = 1;
-        }
-
-        for (int i = 0; i < outerSpikes.length; i++) {
-            outerSpikes[i].protrudePercent = 1;
-        }
 
         Preferences prefs = Gdx.app.getPreferences(Game.fileOutputName);
         highscore = prefs.getInteger(highscorePrefsString, 0);
@@ -419,15 +415,17 @@ public class Game extends com.badlogic.gdx.Game {
         int numSpikes = 0;
 
         if (onOutside) {
-            int maxRandom = Math.min(8, score / 8);
-            int minSpikes = Math.min(3, 1 + score / 20);
+            int maxRandom = Math.min(8, score / 11);
+            int minSpikes = Math.min(4, 2 + score / 23);
 
             int rand = maxRandom > 0 ? random.nextInt(maxRandom) : 0;
             numSpikes = rand + minSpikes;
         } else {
             if (score > 70) numSpikes = random.nextInt(2) == 0 ? 2 : 1;
             else if (score > 40) numSpikes = random.nextInt(2) == 0 ? 1 : 0;
+            else if (score > 20) numSpikes = random.nextInt(5) == 0 ? 1 : 0;
         }
+
 
         Spike[] spikes = onOutside ? outerSpikes : innerSpikes;
 
@@ -449,7 +447,7 @@ public class Game extends com.badlogic.gdx.Game {
 
                         float spikeQuad = getAdjustedAngle(spikeAngle, onOutside) / 90f;
                         float edgeDistance = spikeQuad - (int)spikeQuad;
-                        final float minEdgeDistance = 0.14f;
+                        final float minEdgeDistance = 0.16f;
 
                         if (edgeDistance < minEdgeDistance || edgeDistance > (1f - minEdgeDistance))
                             continue;
@@ -485,15 +483,19 @@ public class Game extends com.badlogic.gdx.Game {
     }
 
     private void updateProgressBarPercent(float dt) {
-        if (onOutside || onInside)
-            progressBarPercent += 1.35f / 360f * dt;
+        if (onOutside || onInside) {
+            float progressBarIncrease = 1.55f / 360f;
+            float progressBarSpeedModifier = 1;
+            final float maxProgressBarSpeedModifier = 1.5f;
 
-        if (progressBarPercent >= 1) {
-            lose();
+            progressBarSpeedModifier += score / 110f;
+            if (progressBarSpeedModifier > maxProgressBarSpeedModifier) progressBarSpeedModifier = maxProgressBarSpeedModifier;
+
+            progressBarPercent += progressBarIncrease * progressBarSpeedModifier * dt;
         }
 
-        if (!playing)
-            progressBarPercent = 0;
+        if (progressBarPercent >= 1) lose();
+        if (!playing)  progressBarPercent = 0;
     }
 
     private void rotateWorld(float dt) {
@@ -768,7 +770,6 @@ public class Game extends com.badlogic.gdx.Game {
         Gdx.gl20.glEnable(GL20.GL_BLEND);
         Gdx.gl20.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
 
-
         fontBatch.begin();
 
         if (topTextAlpha > 0) {
@@ -822,10 +823,9 @@ public class Game extends com.badlogic.gdx.Game {
 
     private void drawSpikesAndDoSpikeCollisionChecks(Spike[] spikes, boolean outside) {
         for (int i = 0; i < spikes.length; i++) {
-            double spikeAngle = spikes[i].angle + Math.PI / 2.0;
+            if (!spikes[i].active) continue;
 
-            if (!spikes[i].active)
-                continue;
+            double spikeAngle = spikes[i].angle + Math.PI / 2.0;
 
             final float sideLength = 0.05f * (float)spikes[i].protrudePercent;
 
@@ -840,7 +840,13 @@ public class Game extends com.badlogic.gdx.Game {
             spikeBuffer[1].set(spikeBuffer[0].x + sideLength, spikeBuffer[0].y);
             spikeBuffer[2].set((spikeBuffer[0].x + spikeBuffer[1].x) / 2f, spikeBuffer[0].y + spike2YOffs);
 
-            for (int j = 0; j < 3; j++)
+            //This interpolates between the vertices to get additional points to check collisions against
+            for (int j = 0; j < 3; j++) {
+                int nextVertex = (j + 1) % 3;
+                spikeBuffer[j + 3].set((spikeBuffer[j].x + spikeBuffer[nextVertex].x) / 2f, (spikeBuffer[j].y + spikeBuffer[nextVertex].y) / 2f);
+            }
+
+            for (int j = 0; j < spikeBuffer.length; j++)
                 rotateVector2(spikeBuffer[j], spikeAngle);
 
             if (spikes[i].collidable && (onInside || onOutside)) {
@@ -852,8 +858,7 @@ public class Game extends com.badlogic.gdx.Game {
                 }
             }
 
-            int quadrant = getQuadrant(spikeAngle, outside) - 1;
-            if (quadrant < 0) quadrant = 3;
+            int quadrant = getQuadrant(spikes[i].angle, outside);
             sr.setColor(colors[quadrant]);
 
             sr.triangle(spikeBuffer[0].x, spikeBuffer[0].y, spikeBuffer[1].x, spikeBuffer[1].y, spikeBuffer[2].x, spikeBuffer[2].y);
@@ -875,10 +880,9 @@ public class Game extends com.badlogic.gdx.Game {
 
     class Spike {
         public double angle;
-        public boolean active = false;
-        public double protrudePercent = 0;
+        public double protrudePercent = 1;
         public boolean movingIn = false, movingOut = false;
-        public boolean collidable = true;
+        public boolean active = false, collidable = true;
     }
 
 }
