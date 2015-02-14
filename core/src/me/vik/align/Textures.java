@@ -6,8 +6,8 @@ import com.badlogic.gdx.graphics.g2d.TextureRegion;
 
 public class Textures {
 
-    public static Texture soundOn, soundOff, musicOn, musicOff, leaderboard, pause, arrow, background, comet, player;
-    public static TextureRegion outerCircle;
+    public static Texture soundOn, soundOff, musicOn, musicOff, leaderboard, pause, arrow, background, comet, player, innerShadow, star;
+    public static TextureRegion arc;
 
     private Textures() {}
 
@@ -21,7 +21,10 @@ public class Textures {
         arrow = createTexture("arrow.png");
         comet = createTexture("comet.png");
         player = createTexture("player.png");
-        background = createTexture("bg3.png");
+        background = createTexture("bg51.jpg");
+        innerShadow = createTexture("inner shadow 2.png");
+        star = createTexture("star.png");
+        arc = new TextureRegion(createTexture("arc.png"));
     }
 
     private static Texture createTexture(String fileName) {

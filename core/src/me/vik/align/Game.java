@@ -1,5 +1,6 @@
 package me.vik.align;
 
+import com.badlogic.gdx.ApplicationAdapter;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
 import com.badlogic.gdx.Preferences;
@@ -10,6 +11,7 @@ import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
+import com.badlogic.gdx.graphics.glutils.ShapeRenderer.ShapeType;
 import com.badlogic.gdx.math.Vector2;
 
 import java.util.Random;
@@ -17,16 +19,13 @@ import java.util.Random;
 //TODO: Change ad id`s
 //TODO: Better game name
 
-//TODO: Particle effects on death, this might be unnecessary
-//TODO: Player Motion trail, this might be unnecessary
-
 //TODO: Tutorial
 //TODO: Better music?
 //TODO: Add achievements
 //TODO: Test leaderboards on release builds
 //TODO: Try to reduce startup time, if not possible add a splash screen
 
-public class Game extends com.badlogic.gdx.Game {
+public class Game extends ApplicationAdapter {
 
     private static final Color[] colors = {
         Util.getColor(166, 255, 122),//green
@@ -36,7 +35,7 @@ public class Game extends com.badlogic.gdx.Game {
         Util.getColor(220, 172, 255) //purple
     };
 
-    private static final Color bgColor = Util.getColor(30, 30, 30);
+    private static final Color bgColor = Util.getColor(40, 40, 40);
 
     public static final String fileOutputName = "me.vik.align";
     private String[] intStrings;
@@ -69,8 +68,9 @@ public class Game extends com.badlogic.gdx.Game {
     private float centerX, centerY;
     private float progressBarPercent = 0f;
     private float innerRotation = 0f, outerRotation = 0f;
+    private float rotationSpeedPercent = 0, dRotationSpeedPercent = 0;
 
-    private boolean playing = false, playedFirstGame = false, paused = false, gameStarted = false;
+    private boolean playing = false, playedFirstGame = false, paused = false, gameStarted = false, turning = false, fadingTurningString = true, everPaused = false;
     private float buttonAlpha = 1f, topTextAlpha = 1f;
     private Button[] buttons;
 
@@ -83,11 +83,15 @@ public class Game extends com.badlogic.gdx.Game {
     private Spike[] innerSpikes, outerSpikes;
 
     private double coinAngle;
+    private float coinAlpha = 0f;
     private float plus2X, plus2Y, plus2Alpha = 0, plus2VelX, plus2VelY;
 
     private float scaleFactor = 1f, scaleVelocity = 0f;
 
-    private String topMessage, tapMessage, resumeMessage, scoreTitleString = "Score", bestString = "Best", gameOverString = "Game Over";
+    private String topMessage, launchMessage, tapMessage, resumeMessage;
+    private String scoreTitleString = "Score", bestString = "Best", gameOverString = "Game Over";
+    private float topMessageSizeTime = 0;
+    
     private float gameOverDisplayTime = 80f, gameOverDisplayCounter = 0f;
 
     private MyLeaderboard leaderboard;
@@ -96,14 +100,24 @@ public class Game extends com.badlogic.gdx.Game {
     private Comet[] trail = new Comet[100];
     private int cometIndex = 0, maxCometIndex = 0;
     private Vector2 v2 = new Vector2();
-
+    
+    private float maskAlpha = 1;
+    private float timerAlpha = 1;
+    
     public void create() {
         Textures.loadTextures();
         Sounds.init();
 
-        topMessage = tapMessage = Util.onMobile() ? "Tap to Launch" : "Click to Launch";
-        resumeMessage  = Util.onMobile() ? "Tap to Resume" : "Click to Resume";
-
+        if (Util.onMobile()) {
+        	topMessage = tapMessage = "Tap to Play";
+        	resumeMessage = "Tap to Resume";
+        	launchMessage = "Tap to Launch";
+        } else {
+        	topMessage = tapMessage = "Click to Play";
+        	resumeMessage = "Click to Resume";
+        	launchMessage = "Click to Launch";
+        }
+        
         intStrings = new String[1000];
         for (int i = 0; i < intStrings.length; i++)
             intStrings[i] = String.valueOf(i);
@@ -160,7 +174,7 @@ public class Game extends com.badlogic.gdx.Game {
         setScore(0);
 
         playerX = centerX;
-        playerY = innerRadius * scaleFactor + playerRadius + centerY;
+        playerY = innerRadius * 0.96f * scaleFactor + playerRadius + centerY;
 
         onInside = lastLoc =  true;
 
@@ -170,9 +184,9 @@ public class Game extends com.badlogic.gdx.Game {
         rotatePlayer(playerDir);
 
         onOutside = true;
-        spawnSpikes(playerDirRad);
+        spawnSpikes(playerDirRad, true);
         onOutside = false;
-        spawnSpikes(playerDirRad);
+        spawnSpikes(playerDirRad, true);
 
         Preferences prefs = Gdx.app.getPreferences(Game.fileOutputName);
         highscore = prefs.getInteger(highscorePrefsString, 0);
@@ -252,7 +266,9 @@ public class Game extends com.badlogic.gdx.Game {
     }
 
     public void pauseGame() {
-        if (playing && gameStarted) paused = true;
+        if (playing && gameStarted) {
+        	paused = everPaused = true;
+        }
     }
 
     public void addComet(float x, float y) {
@@ -274,6 +290,8 @@ public class Game extends com.badlogic.gdx.Game {
         float unpausedDt = Gdx.graphics.getDeltaTime() * 60f;
         if (unpausedDt > maxDt) unpausedDt = maxDt;
         float dt = paused ? 0 : unpausedDt;
+        
+        topMessageSizeTime += unpausedDt;
 
         updateProgressBarPercent(dt);
         rotateWorld(dt);
@@ -289,7 +307,7 @@ public class Game extends com.badlogic.gdx.Game {
         for (int i = 0; i < trail.length; i++) {
         	Comet comet = trail[i];
         	
-        	if (comet.moving) {
+        	if (comet.moving && turning) {
     			v2.set(comet.x - centerX, comet.y - centerY);
     			float dstFromCenter = v2.len();
     			float rotation = comet.headingOutwards ? OUTER_ROTATION : INNER_ROTATION;
@@ -303,7 +321,7 @@ public class Game extends com.badlogic.gdx.Game {
         	comet.alpha += dAlpha * dt;
         	if (comet.alpha < 0) comet.alpha = 0;
         }
-
+        
         boolean buttonAcceptedInput = false;
 
         for (int i = 0; i < buttons.length; i++) {
@@ -313,42 +331,76 @@ public class Game extends com.badlogic.gdx.Game {
         if (!buttonAcceptedInput && Util.justDown()) {
             if (paused || (gameStarted && Vector2.dst(centerX, centerY, Util.getTouchX(), Util.getTouchY()) < innerRadius && !Gdx.input.isKeyJustPressed(Input.Keys.SPACE))) {
                 paused = !paused;
+                everPaused = true;
             } else if (onInside || onOutside) {
-                if (!playing) play();
-                gameStarted = true;
+            	if (!playing) play();
+            	
+            	if (playing) {
+            		gameStarted = true;
 
-                float dirMul = onInside ? 1 : -1;
+                    float dirMul = onInside ? 1 : -1;
 
-                final float playerSpeed = 0.00625f;
+                    final float playerSpeed = 0.00625f;
 
-                playerVelX = (float) Math.cos(dir) * playerSpeed * dirMul;
-                playerVelY = (float) Math.sin(dir) * playerSpeed * dirMul;
+                    playerVelX = (float) Math.cos(dir) * playerSpeed * dirMul;
+                    playerVelY = (float) Math.sin(dir) * playerSpeed * dirMul;
 
-                lastLoc = onInside;
-                onInside = onOutside = false;
+                    lastLoc = onInside;
+                    onInside = onOutside = false;
 
-                Sounds.play(Sounds.jump);
+                    Sounds.play(Sounds.jump);
+            	}
             }
         }
+
         if (playing)  changeTopTextAlpha(paused, unpausedDt);
         else {
+        	if (turning) {
+        		maskAlpha -= 0.05f * dt;
+        		if (maskAlpha < 0) maskAlpha = 0;
+        		
+        		rotationSpeedPercent = 1;
+        		dRotationSpeedPercent = -0.05f;
+        		
+        	} else {
+        		maskAlpha += 0.05f * dt;
+        		if (maskAlpha > 1) maskAlpha = 1;
+        		
+        		final float ddRotationSpeedPercent = -0.015f;
+        		
+        		rotationSpeedPercent += dRotationSpeedPercent * dt + 0.5f * ddRotationSpeedPercent * dt * dt;
+        		if (rotationSpeedPercent < 0) rotationSpeedPercent = 0;
+        		dRotationSpeedPercent += ddRotationSpeedPercent * dt;
+        	}
+        	
             gameOverDisplayCounter += dt;
             if (gameOverDisplayCounter < gameOverDisplayTime) changeTopTextAlpha(true, dt);
             else if (topMessage == gameOverString && topTextAlpha > 0){
                 changeTopTextAlpha(false, dt);
             } else {
-                changeTopTextAlpha(true, dt);
-                topMessage = tapMessage;
+            	boolean fadeOut = fadingTurningString && turning;
+                changeTopTextAlpha(!fadeOut, dt);
+                if (fadeOut && topTextAlpha <= 0) fadingTurningString = false;
+                if (turning && !fadeOut) topMessage = launchMessage;
+                else topMessage = tapMessage;
             }
         }
+        
+        if (score > 0 && turning) {
+			coinAlpha += 0.075f * dt; //TODO: Test coin fade in
+			if (coinAlpha > 1) coinAlpha = 1;
+		}
 
         if (!onInside && !onOutside) {
-            final float unscaledMinDst = innerRadius + playerRadius;
+            final float unscaledMinDst = innerRadius * 0.96f + playerRadius;
             final float unscaledMaxDst = outerRadius - playerRadius;
+            final float unscaledRange = unscaledMaxDst - unscaledMinDst;
             final float minDst = innerRadius * scaleFactor + playerRadius;
             final float maxDst = outerRadius * scaleFactor - playerRadius;
 
             boolean changeCol = false;
+            
+            timerAlpha = (dst - unscaledMinDst) / unscaledRange;
 
             if (dst <= minDst && !lastLoc) {
                 playerX = (float)(Math.cos(dir) * unscaledMinDst + centerX );
@@ -364,7 +416,11 @@ public class Game extends com.badlogic.gdx.Game {
                 onOutside = true;
                 changeCol = true;
             }
-
+            
+            if (lastLoc) timerAlpha = 1 - timerAlpha;
+            if (timerAlpha > 1) timerAlpha = 1;
+            else if (timerAlpha < 0) timerAlpha = 0;
+            
             if (changeCol) {
                 int quadrant = getQuadrant(dir, onOutside);
 
@@ -372,6 +428,8 @@ public class Game extends com.badlogic.gdx.Game {
                     lose();
                 } else {
                     progressBarPercent = 0;
+                    timerAlpha = 1;
+                    
                     if (playing) {
                         setScore(score + 1);
                         int randColIndex = random.nextInt(3);
@@ -389,28 +447,25 @@ public class Game extends com.badlogic.gdx.Game {
                             playerColorIndex = randColIndex;
                         }
 
-                        spawnSpikes(dir);
+                        spawnSpikes(dir, false);
                     }
                 }
 
             } else {
-            	//float oldX = playerX, oldY = playerY;
-            	
-                playerX += playerVelX * dt;
-                playerY += playerVelY * dt;
-                
-               // float playerDeltaX = playerX - oldX, playerDeltaY = playerY - oldY;
-                
-                //for (float i = 1; i < 2; i++) {
-                	//addComet(oldX + playerDeltaX / i, oldY + playerDeltaY / i);
-                //}
-                
-                addComet(playerX, playerY);
-
+            	if (!paused) {
+	            	float oldX = playerX, oldY = playerY;
+	            	float deltaX = playerVelX * dt, deltaY = playerVelY * dt;
+	            	playerX += deltaX;
+	            	playerY += deltaY;
+	            	
+	            	for (float i = 1; i < 3; i++) {
+	            		addComet(oldX + deltaX / i, oldY + deltaY / i);
+	            	}
+            	}
                 float range = unscaledMaxDst - unscaledMinDst;
 
-                boolean shouldIncreaseScale = lastLoc ? dst - unscaledMinDst < range / 2.5f :
-                                                        dst - unscaledMinDst >= range - range / 2.5f ;
+                boolean shouldIncreaseScale = lastLoc ? dst - unscaledMinDst < range / 2f :
+                                                        dst - unscaledMinDst >= range - range / 2f ;
 
                 final float scaleAcceleration =  0.0008f;
 
@@ -468,8 +523,7 @@ public class Game extends com.badlogic.gdx.Game {
         if (plus2Alpha < 0) plus2Alpha = 0;
     }
 
-    //TODO: Change the limits where spikes can spawn to stop overlaps with boundaries and other spikes
-    private void spawnSpikes(double playerDir) {
+    private void spawnSpikes(double playerDir, boolean spawnCompletelyOut) {
         int numSpikes = 0;
 
         if (onOutside) {
@@ -479,9 +533,9 @@ public class Game extends com.badlogic.gdx.Game {
             int rand = maxRandom > 0 ? random.nextInt(maxRandom) : 0;
             numSpikes = rand + minSpikes;
         } else {
-            if (score > 70) numSpikes = random.nextInt(2) == 0 ? 2 : 1;
-            else if (score > 40) numSpikes = random.nextInt(2) == 0 ? 1 : 0;
-            else if (score > 20) numSpikes = random.nextInt(5) == 0 ? 1 : 0;
+            if (score > 50) numSpikes = random.nextInt(2) == 0 ? 2 : 1;
+            else if (score > 25) numSpikes = random.nextInt(2) == 0 ? 1 : 0;
+            else if (score > 10) numSpikes = random.nextInt(5) == 0 ? 1 : 0;
         }
 
 
@@ -505,7 +559,7 @@ public class Game extends com.badlogic.gdx.Game {
 
                         float spikeQuad = getAdjustedAngle(spikeAngle, onOutside) / 90f;
                         float edgeDistance = spikeQuad - (int)spikeQuad;
-                        final float minEdgeDistance = 0.18f;
+                        final float minEdgeDistance = 0.19f;
 
                         if (edgeDistance < minEdgeDistance || edgeDistance > (1f - minEdgeDistance))
                             continue;
@@ -529,10 +583,18 @@ public class Game extends com.badlogic.gdx.Game {
                             ((!onOutside) && numSpikesInQuadrant > 1)) continue;
 
                         spikes[j].angle = spikeAngle;
-                        spikes[j].active = spikes[j].movingOut = true;
+                        spikes[j].active = true;
                         spikes[j].movingIn = false;
-                        spikes[j].protrudePercent = 0;
                         spikes[j].collidable = true;
+                        
+                        if (spawnCompletelyOut) {
+                        	spikes[j].protrudePercent = 1;
+                        	spikes[j].movingOut = false;
+                        } else {
+                        	spikes[j].protrudePercent = 0;
+                        	spikes[j].movingOut = true;
+                        }
+                        
                         continue Outer;
                     }
                 }
@@ -557,8 +619,8 @@ public class Game extends com.badlogic.gdx.Game {
     }
 
     private void rotateWorld(float dt) {
-        float innerRotationAmt = INNER_ROTATION * dt;
-        float outerRotationAmt = OUTER_ROTATION * dt;
+        float innerRotationAmt = INNER_ROTATION * dt * rotationSpeedPercent;
+        float outerRotationAmt = OUTER_ROTATION * dt * rotationSpeedPercent;
 
         innerRotation += innerRotationAmt;
         innerRotation %= 360f;
@@ -575,8 +637,8 @@ public class Game extends com.badlogic.gdx.Game {
 
     private void changeButtonAlpha(float dt) {
         final float buttonAlphaChange = 0.04f * dt;
-        if (!gameStarted && buttonAlpha < 1) buttonAlpha += buttonAlphaChange;
-        if (gameStarted && buttonAlpha > 0) buttonAlpha -= buttonAlphaChange;
+        if (!turning && buttonAlpha < 1) buttonAlpha += buttonAlphaChange;
+        if (turning && buttonAlpha > 0) buttonAlpha -= buttonAlphaChange;
         if (buttonAlpha < 0) buttonAlpha = 0;
         if (buttonAlpha > 1) buttonAlpha = 1;
     }
@@ -668,10 +730,15 @@ public class Game extends com.badlogic.gdx.Game {
         scaleFactor = 1;
         progressBarPercent = 0;
         playing = false;
+        everPaused = false;
+        turning = false;
+        fadingTurningString = true;
         gameStarted = false;
         coinAngle = getRandomRad();
         gameOverDisplayCounter = 0f;
         topMessage = gameOverString;
+        maskAlpha = 0;
+        coinAlpha = 0;
 
         initShake();
         Sounds.play(Sounds.lose);
@@ -686,16 +753,12 @@ public class Game extends com.badlogic.gdx.Game {
     }
     
     private void drawScreen() {
-        Gdx.gl.glClearColor(bgColor.r, bgColor.g, bgColor.b, 0f);
+        Gdx.gl.glClearColor(bgColor.r, bgColor.g, bgColor.b, 1f);
         Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
 
         float xCenter = Util.getAspectRatio() / 2f;
-        int numSegments = 60;
-
-
-        Gdx.gl20.glEnable(GL20.GL_BLEND);
-        Gdx.gl20.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
-
+        Util.enableBlending();
+        
         texBatch.begin();
         texBatch.setColor(Color.WHITE);
 
@@ -713,55 +776,38 @@ public class Game extends com.badlogic.gdx.Game {
 
         float bgX = 0;
         if (bgWidth > bgDrawWidth) bgX = (bgDrawWidth - bgWidth) / 2;
-
         texBatch.draw(Textures.background, bgX, 0, bgDrawWidth, bgDrawHeight);
-
-        texBatch.end();
-
-        Gdx.gl20.glEnable(GL20.GL_BLEND);
-        Gdx.gl20.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
-
-        sr.begin(ShapeRenderer.ShapeType.Filled);
-
-        sr.setColor(colors[0]);
-        sr.arc(xCenter, 0.5f, outerRadius * 1.08f * scaleFactor, -outerRotation, 90f, numSegments);
-
-        sr.setColor(colors[1]);
-        sr.arc(xCenter, 0.5f, outerRadius * 1.08f * scaleFactor, 90 - outerRotation, 90f, numSegments);
-
-        sr.setColor(colors[2]);
-        sr.arc(xCenter, 0.5f, outerRadius * 1.08f * scaleFactor, 180 - outerRotation, 90f, numSegments);
-
-        sr.setColor(colors[3]);
-        sr.arc(xCenter, 0.5f, outerRadius * 1.08f * scaleFactor, 270 - outerRotation, 90f, numSegments);
-
-        sr.setColor(bgColor);
-        sr.circle(xCenter, 0.5f, outerRadius * scaleFactor, numSegments);
-
-        sr.setColor(playerColor.r, playerColor.g, playerColor.b, 0.3f);
-        sr.arc(xCenter, 0.5f, outerRadius * scaleFactor, 90, -360f * (progressBarPercent), numSegments);
-
-        sr.setColor(colors[0]);
-        sr.arc(xCenter, 0.5f, innerRadius * scaleFactor, -innerRotation, 90f, numSegments);
-
-        sr.setColor(colors[1]);
-        sr.arc(xCenter, 0.5f, innerRadius * scaleFactor, 90 - innerRotation, 90f, numSegments);
-
-        sr.setColor(colors[2]);
-        sr.arc(xCenter, 0.5f, innerRadius * scaleFactor, 180 - innerRotation, 90f, numSegments);
-
-        sr.setColor(colors[3]);
-        sr.arc(xCenter, 0.5f, innerRadius * scaleFactor, 270 - innerRotation, 90f, numSegments);
-
-        sr.setColor(0.05f, 0.05f, 0.05f, 1f);
-        sr.circle(xCenter, 0.5f, innerRadius * scaleFactor * 0.85f, numSegments);
-
-        //sr.setColor(playerColor);
-        //sr.circle(playerX, playerY, playerRadius, numSegments);
         
+        float outerArcRadius = outerRadius * 1.12f * scaleFactor;
+        float outerCircleRadius = outerRadius * scaleFactor;
+        drawCircle(outerArcRadius, xCenter, outerRotation);
+
+        texBatch.setColor(Color.WHITE);
+        texBatch.draw(Textures.innerShadow, xCenter - outerCircleRadius, 0.5f - outerCircleRadius, outerCircleRadius * 2, outerCircleRadius * 2);
+        
+        texBatch.end();
+        
+        Util.enableBlending();
+        sr.begin(ShapeType.Filled);
+        
+        float progressBarAlpha = 0.5f * timerAlpha;
+        sr.setColor(colors[4].r, colors[4].g, colors[4].b, progressBarAlpha);
+        sr.arc(xCenter, 0.5f, outerCircleRadius, 90, -progressBarPercent * 360f, 60);
+        
+        drawSpikesAndDoSpikeCollisionChecks(innerSpikes, false);
+        drawSpikesAndDoSpikeCollisionChecks(outerSpikes, true);
         sr.end();
         
+        Util.enableBlending();
         texBatch.begin();
+        
+        float innerArcRadius = innerRadius * scaleFactor;
+        float innerCircleRadius = innerRadius * scaleFactor * 0.85f;
+        drawCircle(innerArcRadius, xCenter, innerRotation);
+        
+        texBatch.setColor(Color.WHITE);
+        texBatch.draw(Textures.innerShadow, xCenter - innerCircleRadius, 0.5f - innerCircleRadius, innerCircleRadius * 2, innerCircleRadius * 2);
+        
         texBatch.setColor(playerColor);
         texBatch.draw(Textures.player, playerX - playerRadius, playerY - playerRadius, playerRadius * 2, playerRadius * 2);
         
@@ -776,26 +822,18 @@ public class Game extends com.badlogic.gdx.Game {
         	}
         }
         
-        texBatch.end();
-        
-        sr.begin(ShapeRenderer.ShapeType.Filled);
-
-        drawSpikesAndDoSpikeCollisionChecks(innerSpikes, false);
-        drawSpikesAndDoSpikeCollisionChecks(outerSpikes, true);
-
         if (playing && score > 0) {
-            Gdx.gl20.glEnable(GL20.GL_BLEND);
-            Gdx.gl20.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
-            sr.setColor(colors[4].r, colors[4].g, colors[4].b, 1f - topTextAlpha);
+            texBatch.setColor(colors[2].r, colors[2].g, colors[2].b, coinAlpha);
             float coinDst = (innerRadius + outerRadius) / 2f * scaleFactor;
-            float coinRadius = 0.0175f;
+            float coinRadius = 0.025f;
             float coinX = (float) (Math.cos(coinAngle) * coinDst + centerX);
             float coinY = (float) (Math.sin(coinAngle) * coinDst + centerY);
 
-            sr.circle(coinX, coinY, coinRadius, numSegments);
+            texBatch.draw(Textures.star, coinX - coinRadius, coinY - coinRadius, coinRadius * 2, coinRadius * 2);
 
             if (Vector2.dst(coinX, coinY, playerX, playerY) <= coinRadius + playerRadius) {
-                setScore(score + 2);
+                setScore(score + 3);
+                coinAlpha = 0;
 
                 Sounds.play(Sounds.coin);
 
@@ -817,11 +855,8 @@ public class Game extends com.badlogic.gdx.Game {
                     }
                 }
             }
-
+            
         }
-        sr.end();
-
-        texBatch.begin();
 
         if (onInside || onOutside) {
             texBatch.setColor(playerColor.r, playerColor.g, playerColor.b, 0.3f);
@@ -847,7 +882,18 @@ public class Game extends com.badlogic.gdx.Game {
             texBatch.draw(Textures.pause, centerX - innerRadius + sizeReduce / 2f, centerY - innerRadius + sizeReduce / 2f, size, size);
         }
         texBatch.end();
+        
+        if (!turning || fadingTurningString) {
+        	Util.enableBlending();
+        	sr.begin(ShapeType.Filled);
+        	
+        	sr.setColor(0, 0, 0, maskAlpha * 0.25f);
+        	sr.rect(0, 0, Util.getAspectRatio(), 1f);
+        	sr.end();
+        }
 
+        Util.enableBlending();
+        
         fontBatch.begin();
         font.setColor(colors[4].r, colors[4].g, colors[4].b, 1 - buttonAlpha);
         float fontScaleFactor = 0.15f;
@@ -857,7 +903,7 @@ public class Game extends com.badlogic.gdx.Game {
         BitmapFont.TextBounds bounds = font.getBounds(scoreString);
         font.draw(fontBatch, scoreString, (Gdx.graphics.getWidth() - bounds.width) / 2, (outerRadius + centerY + 0.0625f) * Gdx.graphics.getHeight() + bounds.height);
         font.setColor(colors[4].r, colors[4].g, colors[4].b, plus2Alpha);
-        font.draw(fontBatch, "+2", plus2X * Gdx.graphics.getWidth(), plus2Y * Gdx.graphics.getHeight());
+        font.draw(fontBatch, "+3", plus2X * Gdx.graphics.getWidth(), plus2Y * Gdx.graphics.getHeight());
         fontBatch.end();
 
         Gdx.gl20.glEnable(GL20.GL_BLEND);
@@ -868,10 +914,14 @@ public class Game extends com.badlogic.gdx.Game {
         if (topTextAlpha > 0) {
             String msg;
 
-            if (paused) msg = resumeMessage;
+            if (paused || everPaused ) msg = resumeMessage;
+            else if (gameStarted) msg = launchMessage;
             else msg = topMessage;
+            
+            if (msg == gameOverString) topMessageSizeTime = 0;
+            float fontSize = (float)(0.005 * Math.sin(topMessageSizeTime * 0.125f) + 0.08);
 
-            font.setScale(0.08f * Gdx.graphics.getHeight() / 128f);
+            font.setScale(fontSize * Gdx.graphics.getHeight() / 128f);
             font.setColor(colors[4].r, colors[4].g, colors[4].b, topTextAlpha);
             bounds = font.getBounds(msg);
             font.draw(fontBatch, msg, (Gdx.graphics.getWidth() - bounds.width) / 2, (outerRadius + centerY - (outerRadius - innerRadius) / 2f) * Gdx.graphics.getHeight());
@@ -913,6 +963,20 @@ public class Game extends com.badlogic.gdx.Game {
 
         texBatch.end();
     }
+    
+    private void drawCircle(float radius, float xCenter, float rotation) {
+    	 texBatch.setColor(colors[0]);
+         texBatch.draw(Textures.arc, xCenter, 0.5f, 0f, 0f, radius, radius, 1, 1, -rotation);
+         
+         texBatch.setColor(colors[1]);
+         texBatch.draw(Textures.arc, xCenter, 0.5f, 0f, 0f, radius, radius, 1, 1, 90 - rotation);
+         
+         texBatch.setColor(colors[2]);
+         texBatch.draw(Textures.arc, xCenter, 0.5f, 0f, 0f, radius, radius, 1, 1, 180 - rotation);
+
+         texBatch.setColor(colors[3]);
+         texBatch.draw(Textures.arc, xCenter, 0.5f, 0f, 0f, radius, radius, 1, 1, 270 - rotation);
+    }
 
     private void drawSpikesAndDoSpikeCollisionChecks(Spike[] spikes, boolean outside) {
         for (int i = 0; i < spikes.length; i++) {
@@ -922,7 +986,7 @@ public class Game extends com.badlogic.gdx.Game {
 
             final float sideLength = 0.05f * (float)spikes[i].protrudePercent;
 
-            float spikeOffs = outside ? 0.045f : 0.008f;
+            float spikeOffs = outside ? 0.04f : 0.02f;
             spikeOffs *= spikes[i].protrudePercent;
 
             float spike0YOffs = outside ? -sideLength : 0;
@@ -965,10 +1029,22 @@ public class Game extends com.badlogic.gdx.Game {
     }
 
     public void play() {
-        setScore(0);
-        assert(playing);
-        playing = true;
-        playedFirstGame = true;
+        if (turning) {
+        	playing = true;
+        	
+        	if (!playedFirstGame) {
+        		if (Util.onMobile()) {
+        			tapMessage = "Tap to Restart";
+        		} else {
+        			tapMessage = "Click to Restart";
+        		}
+        		
+        		playedFirstGame = true;
+        	}
+        } else {
+        	turning = true;
+        	setScore(0);
+        }
     }
 
     class Spike {
