@@ -36,11 +36,16 @@ public class Game extends com.badlogic.gdx.Game {
         Util.getColor(220, 172, 255) //purple
     };
 
+    private static final Color bgColor = Util.getColor(30, 30, 30);
+
     public static final String fileOutputName = "me.vik.align";
     private String[] intStrings;
     private int score, highscore;
     private String scoreString, highscoreString;
     private String highscorePrefsString = "highScore";
+    
+    private static final float INNER_ROTATION = -2.05f;
+    private static final float OUTER_ROTATION = 1.35f;
 
     private OrthographicCamera camera;
     private boolean shaking = false;
@@ -87,6 +92,10 @@ public class Game extends com.badlogic.gdx.Game {
 
     private MyLeaderboard leaderboard;
     private boolean startedLeaderboard = false;
+    
+    private Comet[] trail = new Comet[100];
+    private int cometIndex = 0, maxCometIndex = 0;
+    private Vector2 v2 = new Vector2();
 
     public void create() {
         Textures.loadTextures();
@@ -172,6 +181,9 @@ public class Game extends com.badlogic.gdx.Game {
         if (leaderboard != null) {
             leaderboard.publishHighscore(highscore);
         }
+        
+        for (int i = 0; i < trail.length; i++)
+        	trail[i] = new Comet();
     }
 
     public void setLeaderboard(MyLeaderboard leaderboard) {
@@ -243,6 +255,19 @@ public class Game extends com.badlogic.gdx.Game {
         if (playing && gameStarted) paused = true;
     }
 
+    public void addComet(float x, float y) {
+    	Comet comet = trail[cometIndex];
+    	
+    	comet.x = x;
+    	comet.y = y;
+    	comet.alpha = 1;
+    	comet.moving = false;
+    	comet.headingOutwards = lastLoc;
+        cometIndex++;
+        cometIndex %= trail.length;
+        maxCometIndex = Math.min(trail.length, maxCometIndex + 1);
+    }
+    
     public void render() {
         final float maxDt = 2f;
 
@@ -260,6 +285,24 @@ public class Game extends com.badlogic.gdx.Game {
         float dst = Vector2.dst(xCenter, 0.5f, playerX, playerY);
         double dir = Math.atan2(playerY - 0.5f, playerX - xCenter);
         if (dir < 0) dir += Math.PI * 2.0;
+        
+        for (int i = 0; i < trail.length; i++) {
+        	Comet comet = trail[i];
+        	
+        	if (comet.moving) {
+    			v2.set(comet.x - centerX, comet.y - centerY);
+    			float dstFromCenter = v2.len();
+    			float rotation = comet.headingOutwards ? OUTER_ROTATION : INNER_ROTATION;
+    			v2.nor().rotate(-rotation * dt);
+    			comet.x = v2.x * dstFromCenter + centerX;
+    			comet.y = v2.y * dstFromCenter + centerY;
+        	} 
+        	
+    		float dAlpha = -0.05f;
+        	
+        	comet.alpha += dAlpha * dt;
+        	if (comet.alpha < 0) comet.alpha = 0;
+        }
 
         boolean buttonAcceptedInput = false;
 
@@ -333,6 +376,11 @@ public class Game extends com.badlogic.gdx.Game {
                         setScore(score + 1);
                         int randColIndex = random.nextInt(3);
 
+                        for (int i = 0; i < maxCometIndex; i++) {
+                        	Comet comet = trail[i];
+                        	comet.moving = comet.alpha > 0;
+                        }
+                        
                         if (playerColor == colors[randColIndex]) {
                             playerColor = colors[3];
                             playerColorIndex = 3;
@@ -346,8 +394,18 @@ public class Game extends com.badlogic.gdx.Game {
                 }
 
             } else {
+            	//float oldX = playerX, oldY = playerY;
+            	
                 playerX += playerVelX * dt;
                 playerY += playerVelY * dt;
+                
+               // float playerDeltaX = playerX - oldX, playerDeltaY = playerY - oldY;
+                
+                //for (float i = 1; i < 2; i++) {
+                	//addComet(oldX + playerDeltaX / i, oldY + playerDeltaY / i);
+                //}
+                
+                addComet(playerX, playerY);
 
                 float range = unscaledMaxDst - unscaledMinDst;
 
@@ -447,7 +505,7 @@ public class Game extends com.badlogic.gdx.Game {
 
                         float spikeQuad = getAdjustedAngle(spikeAngle, onOutside) / 90f;
                         float edgeDistance = spikeQuad - (int)spikeQuad;
-                        final float minEdgeDistance = 0.16f;
+                        final float minEdgeDistance = 0.18f;
 
                         if (edgeDistance < minEdgeDistance || edgeDistance > (1f - minEdgeDistance))
                             continue;
@@ -499,8 +557,8 @@ public class Game extends com.badlogic.gdx.Game {
     }
 
     private void rotateWorld(float dt) {
-        float innerRotationAmt = -2.05f * dt;
-        float outerRotationAmt = 1.35f * dt;
+        float innerRotationAmt = INNER_ROTATION * dt;
+        float outerRotationAmt = OUTER_ROTATION * dt;
 
         innerRotation += innerRotationAmt;
         innerRotation %= 360f;
@@ -594,6 +652,8 @@ public class Game extends com.badlogic.gdx.Game {
             if (leaderboard != null) leaderboard.publishHighscore(highscore);
         }
 
+        cometIndex = maxCometIndex = 0;
+        
         //TODO: Clean up duplicated code, maybe by just combining the two arrays
         for (int i = 0; i < innerSpikes.length; i++) {
             innerSpikes[i].collidable = false;
@@ -624,15 +684,42 @@ public class Game extends com.badlogic.gdx.Game {
         playerX = (float)(Math.cos(dir) * dst) + centerX;
         playerY = (float)(Math.sin(dir) * dst) + centerY;
     }
-
+    
     private void drawScreen() {
-        Color bgColor = Color.BLACK;
-
-        Gdx.gl.glClearColor(bgColor.r, bgColor.g, bgColor.b, 1f);
+        Gdx.gl.glClearColor(bgColor.r, bgColor.g, bgColor.b, 0f);
         Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
 
         float xCenter = Util.getAspectRatio() / 2f;
         int numSegments = 60;
+
+
+        Gdx.gl20.glEnable(GL20.GL_BLEND);
+        Gdx.gl20.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
+
+        texBatch.begin();
+        texBatch.setColor(Color.WHITE);
+
+        float bgAspectRatio = (float)Textures.background.getWidth() / Textures.background.getHeight();
+        float bgWidth = (float)Textures.background.getWidth() / (float)Gdx.graphics.getHeight();
+        float bgDrawWidth, bgDrawHeight;
+
+        if (Util.getAspectRatio() <= 1) {
+            bgDrawWidth = bgAspectRatio;
+            bgDrawHeight = 1f;
+        } else {
+            bgDrawWidth = Util.getAspectRatio();
+            bgDrawHeight = Util.getAspectRatio() * bgAspectRatio;
+        }
+
+        float bgX = 0;
+        if (bgWidth > bgDrawWidth) bgX = (bgDrawWidth - bgWidth) / 2;
+
+        texBatch.draw(Textures.background, bgX, 0, bgDrawWidth, bgDrawHeight);
+
+        texBatch.end();
+
+        Gdx.gl20.glEnable(GL20.GL_BLEND);
+        Gdx.gl20.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
 
         sr.begin(ShapeRenderer.ShapeType.Filled);
 
@@ -648,26 +735,11 @@ public class Game extends com.badlogic.gdx.Game {
         sr.setColor(colors[3]);
         sr.arc(xCenter, 0.5f, outerRadius * 1.08f * scaleFactor, 270 - outerRotation, 90f, numSegments);
 
-        /*sr.setColor(bgColor);
-        sr.arc(xCenter, 0.5f, 1.1f, 90, -360f * (progressBarPercent), numSegments);
-
-        sr.setColor(colors[0]);
-        sr.arc(xCenter, 0.5f, outerRadius * 1.035f * scaleFactor, -outerRotation, 90f, numSegments);
-
-        sr.setColor(colors[1]);
-        sr.arc(xCenter, 0.5f, outerRadius * 1.035f * scaleFactor, 90 - outerRotation, 90f, numSegments);
-
-        sr.setColor(colors[2]);
-        sr.arc(xCenter, 0.5f, outerRadius * 1.035f * scaleFactor, 180 - outerRotation, 90f, numSegments);
-
-        sr.setColor(colors[3]);
-        sr.arc(xCenter, 0.5f, outerRadius * 1.035f * scaleFactor, 270 - outerRotation, 90f, numSegments);*/
-
         sr.setColor(bgColor);
         sr.circle(xCenter, 0.5f, outerRadius * scaleFactor, numSegments);
 
         sr.setColor(playerColor.r, playerColor.g, playerColor.b, 0.3f);
-        sr.arc(xCenter, 0.5f,outerRadius * scaleFactor, 90, -360f * (progressBarPercent), numSegments);
+        sr.arc(xCenter, 0.5f, outerRadius * scaleFactor, 90, -360f * (progressBarPercent), numSegments);
 
         sr.setColor(colors[0]);
         sr.arc(xCenter, 0.5f, innerRadius * scaleFactor, -innerRotation, 90f, numSegments);
@@ -681,11 +753,32 @@ public class Game extends com.badlogic.gdx.Game {
         sr.setColor(colors[3]);
         sr.arc(xCenter, 0.5f, innerRadius * scaleFactor, 270 - innerRotation, 90f, numSegments);
 
-        sr.setColor(bgColor);
-        sr.circle(xCenter, 0.5f, innerRadius * scaleFactor * 0.9f, numSegments);
+        sr.setColor(0.05f, 0.05f, 0.05f, 1f);
+        sr.circle(xCenter, 0.5f, innerRadius * scaleFactor * 0.85f, numSegments);
 
-        sr.setColor(playerColor);
-        sr.circle(playerX, playerY, playerRadius, numSegments);
+        //sr.setColor(playerColor);
+        //sr.circle(playerX, playerY, playerRadius, numSegments);
+        
+        sr.end();
+        
+        texBatch.begin();
+        texBatch.setColor(playerColor);
+        texBatch.draw(Textures.player, playerX - playerRadius, playerY - playerRadius, playerRadius * 2, playerRadius * 2);
+        
+        for (int i = 0; i < maxCometIndex; i++) {
+        	Comet comet = trail[i];
+        	
+        	if (comet.alpha > 0) {
+	        	float renderSize = playerRadius * 2 * comet.alpha;
+	        	
+	        	texBatch.setColor(playerColor.r, playerColor.g, playerColor.b, comet.alpha);
+	        	texBatch.draw(Textures.comet, comet.x - renderSize / 2, comet.y - renderSize / 2, renderSize, renderSize);
+        	}
+        }
+        
+        texBatch.end();
+        
+        sr.begin(ShapeRenderer.ShapeType.Filled);
 
         drawSpikesAndDoSpikeCollisionChecks(innerSpikes, false);
         drawSpikesAndDoSpikeCollisionChecks(outerSpikes, true);
@@ -883,6 +976,12 @@ public class Game extends com.badlogic.gdx.Game {
         public double protrudePercent = 1;
         public boolean movingIn = false, movingOut = false;
         public boolean active = false, collidable = true;
+    }
+    
+    class Comet {
+    	float x, y;
+    	boolean moving, headingOutwards;
+    	float alpha;
     }
 
 }

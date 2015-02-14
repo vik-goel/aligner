@@ -2,10 +2,12 @@ package me.vik.align;
 
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.Texture;
+import com.badlogic.gdx.graphics.g2d.TextureRegion;
 
 public class Textures {
 
-    public static Texture soundOn, soundOff, musicOn, musicOff, leaderboard, pause, arrow;
+    public static Texture soundOn, soundOff, musicOn, musicOff, leaderboard, pause, arrow, background, comet, player;
+    public static TextureRegion outerCircle;
 
     private Textures() {}
 
@@ -17,6 +19,9 @@ public class Textures {
         leaderboard = createTexture("leaderboard.png");
         pause = createTexture("pause.png");
         arrow = createTexture("arrow.png");
+        comet = createTexture("comet.png");
+        player = createTexture("player.png");
+        background = createTexture("bg3.png");
     }
 
     private static Texture createTexture(String fileName) {
