@@ -5,7 +5,6 @@ import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
 import com.badlogic.gdx.Preferences;
 import com.badlogic.gdx.graphics.Color;
-import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
@@ -17,7 +16,7 @@ import com.badlogic.gdx.math.Vector2;
 import java.util.Random;
 
 //TODO: Change ad id`s
-//TODO: Better game name
+//TODO: Better game name, Comet Shooter?
 
 //TODO: Tutorial
 //TODO: Better music?
@@ -34,8 +33,6 @@ public class Game extends ApplicationAdapter {
         Util.getColor(255, 166, 217),//pink
         Util.getColor(220, 172, 255) //purple
     };
-
-    private static final Color bgColor = Util.getColor(40, 40, 40);
 
     public static final String fileOutputName = "me.vik.align";
     private String[] intStrings;
@@ -103,6 +100,8 @@ public class Game extends ApplicationAdapter {
     
     private float maskAlpha = 1;
     private float timerAlpha = 1;
+    private float timeSinceLastHit = Float.MAX_VALUE;
+    private int lastPlayerColorIndex;
     
     public void create() {
         Textures.loadTextures();
@@ -174,9 +173,10 @@ public class Game extends ApplicationAdapter {
         setScore(0);
 
         playerX = centerX;
-        playerY = innerRadius * 0.96f * scaleFactor + playerRadius + centerY;
+        playerY = innerRadius * 0.89f * scaleFactor + playerRadius + centerY;
 
-        onInside = lastLoc =  true;
+        onInside = true;
+        lastLoc =  false;
 
         float playerDir = 45f;
         double playerDirRad = Math.toRadians(playerDir);
@@ -292,6 +292,7 @@ public class Game extends ApplicationAdapter {
         float dt = paused ? 0 : unpausedDt;
         
         topMessageSizeTime += unpausedDt;
+        timeSinceLastHit += dt;
 
         updateProgressBarPercent(dt);
         rotateWorld(dt);
@@ -352,20 +353,22 @@ public class Game extends ApplicationAdapter {
             	}
             }
         }
-
+        
+        if (paused || !turning) {
+        	maskAlpha += 0.05f * unpausedDt;
+    		if (maskAlpha > 1) maskAlpha = 1;
+        } else {
+        	maskAlpha -= 0.05f * unpausedDt;
+    		if (maskAlpha < 0) maskAlpha = 0;
+        }
+        
         if (playing)  changeTopTextAlpha(paused, unpausedDt);
         else {
         	if (turning) {
-        		maskAlpha -= 0.05f * dt;
-        		if (maskAlpha < 0) maskAlpha = 0;
-        		
         		rotationSpeedPercent = 1;
         		dRotationSpeedPercent = -0.05f;
         		
         	} else {
-        		maskAlpha += 0.05f * dt;
-        		if (maskAlpha > 1) maskAlpha = 1;
-        		
         		final float ddRotationSpeedPercent = -0.015f;
         		
         		rotationSpeedPercent += dRotationSpeedPercent * dt + 0.5f * ddRotationSpeedPercent * dt * dt;
@@ -386,13 +389,13 @@ public class Game extends ApplicationAdapter {
             }
         }
         
-        if (score > 0 && turning) {
-			coinAlpha += 0.075f * dt; //TODO: Test coin fade in
+        if (score > 0 && playing) {
+			coinAlpha += 0.1f * dt;
 			if (coinAlpha > 1) coinAlpha = 1;
 		}
 
         if (!onInside && !onOutside) {
-            final float unscaledMinDst = innerRadius * 0.96f + playerRadius;
+            final float unscaledMinDst = innerRadius * 0.89f + playerRadius;
             final float unscaledMaxDst = outerRadius - playerRadius;
             final float unscaledRange = unscaledMaxDst - unscaledMinDst;
             final float minDst = innerRadius * scaleFactor + playerRadius;
@@ -422,6 +425,7 @@ public class Game extends ApplicationAdapter {
             else if (timerAlpha < 0) timerAlpha = 0;
             
             if (changeCol) {
+            	timeSinceLastHit = 0;
                 int quadrant = getQuadrant(dir, onOutside);
 
                 if (quadrant != playerColorIndex) {
@@ -429,6 +433,8 @@ public class Game extends ApplicationAdapter {
                 } else {
                     progressBarPercent = 0;
                     timerAlpha = 1;
+                    
+                    lastPlayerColorIndex = playerColorIndex;
                     
                     if (playing) {
                         setScore(score + 1);
@@ -495,6 +501,8 @@ public class Game extends ApplicationAdapter {
             scaleFactor = 1;
         }
 
+        if (onInside || onOutside) lastLoc = onInside;
+        
         changeSpikeProtrusions(innerSpikes, dt);
         changeSpikeProtrusions(outerSpikes, dt);
         drawScreen();
@@ -527,15 +535,15 @@ public class Game extends ApplicationAdapter {
         int numSpikes = 0;
 
         if (onOutside) {
-            int maxRandom = Math.min(8, score / 11);
-            int minSpikes = Math.min(4, 2 + score / 23);
+            int maxRandom = Math.min(8, (score - 8) / 11);
+            int minSpikes = Math.min(4, 1 + score / 23);
 
             int rand = maxRandom > 0 ? random.nextInt(maxRandom) : 0;
             numSpikes = rand + minSpikes;
         } else {
-            if (score > 50) numSpikes = random.nextInt(2) == 0 ? 2 : 1;
-            else if (score > 25) numSpikes = random.nextInt(2) == 0 ? 1 : 0;
-            else if (score > 10) numSpikes = random.nextInt(5) == 0 ? 1 : 0;
+            if (score > 60) numSpikes = random.nextInt(2) == 0 ? 2 : 1;
+            else if (score > 30) numSpikes = random.nextInt(2) == 0 ? 1 : 0;
+            else if (score > 15) numSpikes = random.nextInt(5) == 0 ? 1 : 0;
         }
 
 
@@ -605,10 +613,9 @@ public class Game extends ApplicationAdapter {
     private void updateProgressBarPercent(float dt) {
         if (onOutside || onInside) {
             float progressBarIncrease = 1.55f / 360f;
-            float progressBarSpeedModifier = 1;
-            final float maxProgressBarSpeedModifier = 1.5f;
+            final float maxProgressBarSpeedModifier = 1.33f;
 
-            progressBarSpeedModifier += score / 110f;
+            float progressBarSpeedModifier = 1 + (score - 15) / 110f;
             if (progressBarSpeedModifier > maxProgressBarSpeedModifier) progressBarSpeedModifier = maxProgressBarSpeedModifier;
 
             progressBarPercent += progressBarIncrease * progressBarSpeedModifier * dt;
@@ -753,34 +760,16 @@ public class Game extends ApplicationAdapter {
     }
     
     private void drawScreen() {
-        Gdx.gl.glClearColor(bgColor.r, bgColor.g, bgColor.b, 1f);
-        Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
-
         float xCenter = Util.getAspectRatio() / 2f;
         Util.enableBlending();
         
         texBatch.begin();
         texBatch.setColor(Color.WHITE);
-
-        float bgAspectRatio = (float)Textures.background.getWidth() / Textures.background.getHeight();
-        float bgWidth = (float)Textures.background.getWidth() / (float)Gdx.graphics.getHeight();
-        float bgDrawWidth, bgDrawHeight;
-
-        if (Util.getAspectRatio() <= 1) {
-            bgDrawWidth = bgAspectRatio;
-            bgDrawHeight = 1f;
-        } else {
-            bgDrawWidth = Util.getAspectRatio();
-            bgDrawHeight = Util.getAspectRatio() * bgAspectRatio;
-        }
-
-        float bgX = 0;
-        if (bgWidth > bgDrawWidth) bgX = (bgDrawWidth - bgWidth) / 2;
-        texBatch.draw(Textures.background, bgX, 0, bgDrawWidth, bgDrawHeight);
+        texBatch.draw(Textures.background, 0, 0, Util.getAspectRatio(), 1);
         
-        float outerArcRadius = outerRadius * 1.12f * scaleFactor;
+        float outerArcRadius = outerRadius * 1.22f * scaleFactor;
         float outerCircleRadius = outerRadius * scaleFactor;
-        drawCircle(outerArcRadius, xCenter, outerRotation);
+        drawCircle(outerArcRadius, xCenter, outerRotation, lastLoc);
 
         texBatch.setColor(Color.WHITE);
         texBatch.draw(Textures.innerShadow, xCenter - outerCircleRadius, 0.5f - outerCircleRadius, outerCircleRadius * 2, outerCircleRadius * 2);
@@ -789,9 +778,15 @@ public class Game extends ApplicationAdapter {
         
         Util.enableBlending();
         sr.begin(ShapeType.Filled);
+
+        float changeProgressBarColPercent = (progressBarPercent - 0.5f) * 2;
+        if (changeProgressBarColPercent < 0) changeProgressBarColPercent = 0;
+        float progressBarR = 1f * changeProgressBarColPercent + (1 - changeProgressBarColPercent) * colors[4].r;
+        float progressBarG = 0.2f * changeProgressBarColPercent + (1 - changeProgressBarColPercent) * colors[4].g;
+        float progressBarB = 0.2f * changeProgressBarColPercent + (1 - changeProgressBarColPercent) * colors[4].b;
+        float progressBarA = 0.55f * timerAlpha;
         
-        float progressBarAlpha = 0.5f * timerAlpha;
-        sr.setColor(colors[4].r, colors[4].g, colors[4].b, progressBarAlpha);
+        sr.setColor(progressBarR, progressBarG, progressBarB, progressBarA);
         sr.arc(xCenter, 0.5f, outerCircleRadius, 90, -progressBarPercent * 360f, 60);
         
         drawSpikesAndDoSpikeCollisionChecks(innerSpikes, false);
@@ -802,8 +797,8 @@ public class Game extends ApplicationAdapter {
         texBatch.begin();
         
         float innerArcRadius = innerRadius * scaleFactor;
-        float innerCircleRadius = innerRadius * scaleFactor * 0.85f;
-        drawCircle(innerArcRadius, xCenter, innerRotation);
+        float innerCircleRadius = innerRadius * scaleFactor * 0.78f;
+        drawCircle(innerArcRadius, xCenter, innerRotation, !lastLoc);
         
         texBatch.setColor(Color.WHITE);
         texBatch.draw(Textures.innerShadow, xCenter - innerCircleRadius, 0.5f - innerCircleRadius, innerCircleRadius * 2, innerCircleRadius * 2);
@@ -858,7 +853,7 @@ public class Game extends ApplicationAdapter {
             
         }
 
-        if (onInside || onOutside) {
+        if (turning && (onInside || onOutside)) {
             texBatch.setColor(playerColor.r, playerColor.g, playerColor.b, 0.3f);
             double playerRot = Math.atan2(playerY - centerY, playerX - centerX);
             int arrowWidth = Textures.arrow.getWidth();
@@ -883,33 +878,29 @@ public class Game extends ApplicationAdapter {
         }
         texBatch.end();
         
-        if (!turning || fadingTurningString) {
+        if (maskAlpha > 0) {
         	Util.enableBlending();
         	sr.begin(ShapeType.Filled);
         	
-        	sr.setColor(0, 0, 0, maskAlpha * 0.25f);
+        	sr.setColor(0, 0, 0, maskAlpha * 0.35f);
         	sr.rect(0, 0, Util.getAspectRatio(), 1f);
         	sr.end();
         }
 
         Util.enableBlending();
-        
         fontBatch.begin();
-        font.setColor(colors[4].r, colors[4].g, colors[4].b, 1 - buttonAlpha);
-        float fontScaleFactor = 0.15f;
-        if (scoreString.length() == 3) fontScaleFactor = 0.125f;
-        if (scoreString.length() > 3) fontScaleFactor = 0.105f;
-        font.setScale(fontScaleFactor * Gdx.graphics.getHeight() / 128f);
-        BitmapFont.TextBounds bounds = font.getBounds(scoreString);
-        font.draw(fontBatch, scoreString, (Gdx.graphics.getWidth() - bounds.width) / 2, (outerRadius + centerY + 0.0625f) * Gdx.graphics.getHeight() + bounds.height);
-        font.setColor(colors[4].r, colors[4].g, colors[4].b, plus2Alpha);
-        font.draw(fontBatch, "+3", plus2X * Gdx.graphics.getWidth(), plus2Y * Gdx.graphics.getHeight());
-        fontBatch.end();
 
-        Gdx.gl20.glEnable(GL20.GL_BLEND);
-        Gdx.gl20.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
-
-        fontBatch.begin();
+        if (playing) {
+	        font.setColor(colors[4].r, colors[4].g, colors[4].b, 1 - buttonAlpha);
+	        float fontScaleFactor = 0.15f;
+	        if (scoreString.length() == 3) fontScaleFactor = 0.125f;
+	        if (scoreString.length() > 3) fontScaleFactor = 0.105f;
+	        font.setScale(fontScaleFactor * Gdx.graphics.getHeight() / 128f);
+	        BitmapFont.TextBounds bounds = font.getBounds(scoreString);
+	        font.draw(fontBatch, scoreString, (Gdx.graphics.getWidth() - bounds.width) / 2, (outerRadius + centerY + 0.0625f) * Gdx.graphics.getHeight() + bounds.height);
+	        font.setColor(colors[4].r, colors[4].g, colors[4].b, plus2Alpha);
+	        font.draw(fontBatch, "+3", plus2X * Gdx.graphics.getWidth(), plus2Y * Gdx.graphics.getHeight());
+        }
 
         if (topTextAlpha > 0) {
             String msg;
@@ -919,19 +910,21 @@ public class Game extends ApplicationAdapter {
             else msg = topMessage;
             
             if (msg == gameOverString) topMessageSizeTime = 0;
-            float fontSize = (float)(0.005 * Math.sin(topMessageSizeTime * 0.125f) + 0.08);
+            float fontSize = (float)(0.0075 * Math.sin(topMessageSizeTime * 0.125f) + 0.08);
 
             font.setScale(fontSize * Gdx.graphics.getHeight() / 128f);
             font.setColor(colors[4].r, colors[4].g, colors[4].b, topTextAlpha);
-            bounds = font.getBounds(msg);
+            BitmapFont.TextBounds bounds = font.getBounds(msg);
             font.draw(fontBatch, msg, (Gdx.graphics.getWidth() - bounds.width) / 2, (outerRadius + centerY - (outerRadius - innerRadius) / 2f) * Gdx.graphics.getHeight());
+        } else {
+        	topMessageSizeTime = 0;
         }
 
         if (playedFirstGame && !gameStarted) {
             font.setScale(0.045f * Gdx.graphics.getHeight() / 128f);
 
             font.setColor(colors[4].r, colors[4].g, colors[4].b, buttonAlpha);
-            bounds = font.getBounds(bestString);
+            BitmapFont.TextBounds bounds = font.getBounds(bestString);
             final float bestYSeperation = bounds.height * 0.1f;
             float yOffs = bounds.height * 1f + bestYSeperation;
             float yPos = Gdx.graphics.getHeight() / 2f + yOffs * 2;
@@ -964,21 +957,39 @@ public class Game extends ApplicationAdapter {
         texBatch.end();
     }
     
-    private void drawCircle(float radius, float xCenter, float rotation) {
-    	 texBatch.setColor(colors[0]);
-         texBatch.draw(Textures.arc, xCenter, 0.5f, 0f, 0f, radius, radius, 1, 1, -rotation);
-         
-         texBatch.setColor(colors[1]);
-         texBatch.draw(Textures.arc, xCenter, 0.5f, 0f, 0f, radius, radius, 1, 1, 90 - rotation);
-         
-         texBatch.setColor(colors[2]);
-         texBatch.draw(Textures.arc, xCenter, 0.5f, 0f, 0f, radius, radius, 1, 1, 180 - rotation);
-
-         texBatch.setColor(colors[3]);
-         texBatch.draw(Textures.arc, xCenter, 0.5f, 0f, 0f, radius, radius, 1, 1, 270 - rotation);
+    private void drawCircle(float radius, float xCenter, float rotation, boolean glows) {
+    	 drawArc(0, xCenter, radius, -rotation, glows);
+    	 drawArc(1, xCenter, radius, 90 - rotation, glows);
+    	 drawArc(2, xCenter, radius, 180 - rotation, glows);
+    	 drawArc(3, xCenter, radius, 270 - rotation, glows);
     }
 
-    private void drawSpikesAndDoSpikeCollisionChecks(Spike[] spikes, boolean outside) {
+    private void drawArc(int colorIndex, float xCenter, float radius, float rotation, boolean glows) {
+    	final float glowRadiusReduce = 0.88f;
+    	
+    	texBatch.setColor(colors[colorIndex]);
+    	texBatch.draw(Textures.arc, xCenter, 0.5f, 0f, 0f, radius * glowRadiusReduce, radius * glowRadiusReduce, 1, 1, rotation);
+    	
+    	final float fadeTime = 12f;
+    	float glowAlpha = (fadeTime - timeSinceLastHit) / fadeTime;
+    	
+    	boolean fadingOut = colorIndex == lastPlayerColorIndex && !glows;
+    	boolean fadingIn = colorIndex == playerColorIndex && glows;
+    	
+    	if (fadingIn) {
+    		glowAlpha = 1 - glowAlpha;
+    		if (glowAlpha < 0) glowAlpha = 1;
+    	}
+    	
+    	if (glowAlpha > 0 && (fadingOut || fadingIn)) {
+    		if (glowAlpha > 1) glowAlpha = 1;
+    		
+    		texBatch.setColor(colors[colorIndex].r, colors[colorIndex].g, colors[colorIndex].b, glowAlpha);
+    		texBatch.draw(Textures.arcWithGlow, xCenter, 0.5f, 0f, 0f, radius, radius, 1, 1, rotation);
+    	}
+	}
+
+	private void drawSpikesAndDoSpikeCollisionChecks(Spike[] spikes, boolean outside) {
         for (int i = 0; i < spikes.length; i++) {
             if (!spikes[i].active) continue;
 
@@ -986,8 +997,8 @@ public class Game extends ApplicationAdapter {
 
             final float sideLength = 0.05f * (float)spikes[i].protrudePercent;
 
-            float spikeOffs = outside ? 0.04f : 0.02f;
-            spikeOffs *= spikes[i].protrudePercent;
+            float spikeOffs = outside ? 0.045f : 0.02f;
+            if (outside) spikeOffs *= spikes[i].protrudePercent;
 
             float spike0YOffs = outside ? -sideLength : 0;
             float spike2YOffs = outside ? sideLength : -sideLength;
@@ -1031,6 +1042,7 @@ public class Game extends ApplicationAdapter {
     public void play() {
         if (turning) {
         	playing = true;
+        	setScore(0);
         	
         	if (!playedFirstGame) {
         		if (Util.onMobile()) {
@@ -1043,7 +1055,6 @@ public class Game extends ApplicationAdapter {
         	}
         } else {
         	turning = true;
-        	setScore(0);
         }
     }
 
