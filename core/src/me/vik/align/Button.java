@@ -2,8 +2,8 @@ package me.vik.align;
 
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
-import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
+import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.badlogic.gdx.math.Vector2;
 
 public abstract class Button {
@@ -11,11 +11,11 @@ public abstract class Button {
     private float x, y, radius;
     private float renderRadius, radiusVelocity = 0f, radiusAcceleration = -0.001f;
     private boolean selected = false;
-    protected Texture texture;
+    protected TextureRegion texture;
     protected boolean acceptsSpace = false;
     private boolean spaceWasDown = false;
 
-    protected Button(float x, float y, float radius, Texture texture) {
+    protected Button(float x, float y, float radius, TextureRegion texture) {
         this.x = x;
         this.y = y;
         this.radius = this.renderRadius = radius;

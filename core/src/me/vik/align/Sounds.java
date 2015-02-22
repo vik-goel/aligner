@@ -24,7 +24,7 @@ public class Sounds {
         assert(!initialized);
         soundEnabled = !soundEnabled;
 
-        Preferences prefs = Gdx.app.getPreferences(Game.fileOutputName);
+        Preferences prefs = Game.prefs;
         prefs.putBoolean(soundPrefsString, soundEnabled);
         prefs.flush();
     }
@@ -41,7 +41,7 @@ public class Sounds {
         if (musicEnabled) backgroundMusic.play();
         else backgroundMusic.stop();
 
-        Preferences prefs = Gdx.app.getPreferences(Game.fileOutputName);
+        Preferences prefs = Game.prefs;
         prefs.putBoolean(musicPrefsString, musicEnabled);
         prefs.flush();
     }
@@ -55,7 +55,7 @@ public class Sounds {
         assert(initialized);
         initialized = true;
 
-        Preferences prefs = Gdx.app.getPreferences(Game.fileOutputName);
+        Preferences prefs = Game.prefs;
         soundEnabled = prefs.getBoolean(soundPrefsString, true);
         musicEnabled = prefs.getBoolean(musicPrefsString, true);
 
