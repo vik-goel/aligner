@@ -179,7 +179,7 @@ public class Game extends ApplicationAdapter {
         playerY = innerRadius * 0.885f * scaleFactor + playerRadius + centerY;
 
         onInside = true;
-        lastLoc =  false;
+        lastLoc =  true;
         onOutside = false;
 
         float playerDir = 45f;
@@ -279,7 +279,7 @@ public class Game extends ApplicationAdapter {
         cometIndex++;
         cometIndex %= trail.length;
     }
-    
+
     public void render() {
         final float maxDt = 2f;
 
@@ -296,9 +296,8 @@ public class Game extends ApplicationAdapter {
         shake(dt);
         updatePlus2(dt);
 
-        float xCenter = Util.getAspectRatio() / 2f;
-        float dst = Vector2.dst(xCenter, 0.5f, playerX, playerY);
-        double dir = Math.atan2(playerY - 0.5f, playerX - xCenter);
+        float dst = Vector2.dst(centerX, centerY, playerX, playerY);
+        double dir = Math.atan2(playerY - centerY, playerX - centerX);
         while (dir < 0) dir += Math.PI * 2.0;
         while (dir > Math.PI * 2.0) dir -= Math.PI * 2.0;
         
@@ -313,7 +312,7 @@ public class Game extends ApplicationAdapter {
 	    			v2.nor().rotate(-rotation * dt);
 	    			comet.x = v2.x * dstFromCenter + centerX;
 	    			comet.y = v2.y * dstFromCenter + centerY;
-	        	} 
+	        	}
 	        	
 	    		float dAlpha = -0.05f;
 	        	
@@ -340,12 +339,11 @@ public class Game extends ApplicationAdapter {
 
                     float dirMul = onInside ? 1 : -1;
 
-                    final float playerSpeed = 0.00625f;
+                    final float playerSpeed = 0.0075f;
 
                     playerVelX = (float) Math.cos(dir) * playerSpeed * dirMul;
                     playerVelY = (float) Math.sin(dir) * playerSpeed * dirMul;
 
-                    lastLoc = onInside;
                     onInside = onOutside = false;
 
                     Sounds.play(Sounds.jump);
@@ -381,36 +379,41 @@ public class Game extends ApplicationAdapter {
 			if (coinAlpha > 1) coinAlpha = 1;
 		}
 
-        if (!onInside && !onOutside) {
-            final float unscaledMinDst = innerRadius * 0.885f + playerRadius;
-            final float unscaledMaxDst = outerRadius - playerRadius;
-            final float unscaledRange = unscaledMaxDst - unscaledMinDst;
+        if (!onInside && !onOutside && !paused) {
+            float oldX = playerX, oldY = playerY;
+            float deltaX = playerVelX * dt, deltaY = playerVelY * dt;
+            playerX += deltaX;
+            playerY += deltaY;
 
-            boolean changeCol = false;
-            
-            timerAlpha = (dst - unscaledMinDst) / unscaledRange;
+            final float minDst = innerRadius * 0.885f + playerRadius;
+            final float maxDst = outerRadius - playerRadius;
 
-            if (dst <= unscaledMinDst && !lastLoc) {
-                playerX = (float)(Math.cos(dir) * unscaledMinDst + centerX );
-                playerY = (float)(Math.sin(dir) * unscaledMinDst + centerY );
-
-                onInside = true;
-                changeCol = true;
-            }
-            else if (dst >= unscaledMaxDst && lastLoc) {
-                playerX = (float)(Math.cos(dir) * unscaledMaxDst + centerX );
-                playerY = (float)(Math.sin(dir) * unscaledMaxDst + centerY );
-
-                onOutside = true;
-                changeCol = true;
-            }
-            
+            timerAlpha = (dst - minDst) / (maxDst - minDst);
             if (lastLoc) timerAlpha = 1 - timerAlpha;
             if (timerAlpha > 1) timerAlpha = 1;
             else if (timerAlpha < 0) timerAlpha = 0;
-            
+
+            boolean changeCol = false;
+
+            if (dst <= minDst && !lastLoc) {
+                playerX = (float)(Math.cos(dir) * minDst + centerX);
+                playerY = (float)(Math.sin(dir) * minDst + centerY);
+
+                onInside = true;
+                changeCol = true;
+                lastLoc = true;
+            }
+            else if (dst >= maxDst && lastLoc) {
+                playerX = (float)(Math.cos(dir) * maxDst + centerX);
+                playerY = (float)(Math.sin(dir) * maxDst + centerY);
+
+                onOutside = true;
+                changeCol = true;
+                lastLoc = false;
+            }
+
             if (changeCol) {
-            	timeSinceLastHit = 0;
+                timeSinceLastHit = 0;
                 int quadrant = getQuadrant(dir, onOutside);
 
                 if (quadrant != playerColorIndex) {
@@ -418,18 +421,18 @@ public class Game extends ApplicationAdapter {
                 } else {
                     progressBarPercent = 0;
                     timerAlpha = 1;
-                    
+
                     lastPlayerColorIndex = playerColorIndex;
-                    
+
                     if (playing) {
                         setScore(score + 1);
                         int randColIndex = random.nextInt(3);
 
                         for (int i = 0; i < trail.length; i++) {
-                        	Comet comet = trail[i];
-                        	comet.moving = comet.alpha > 0;
+                            Comet comet = trail[i];
+                            comet.moving = comet.alpha > 0;
                         }
-                        
+
                         if (playerColor == colors[randColIndex]) {
                             playerColor = colors[3];
                             playerColorIndex = 3;
@@ -437,31 +440,29 @@ public class Game extends ApplicationAdapter {
                             playerColor = colors[randColIndex];
                             playerColorIndex = randColIndex;
                         }
-                        spawnSpikes(dir);
+
+                        double playerDir = Math.atan2(playerY - centerY, playerX - centerX);
+                        while (playerDir < 0) playerDir += Math.PI * 2.0;
+                        while (playerDir > Math.PI * 2.0) playerDir -= Math.PI * 2.0;
+
+                        spawnSpikes(playerDir);
                     }
                 }
 
+                scaleFactor = 1f;
             } else {
-            	if (!paused) {
-	            	float oldX = playerX, oldY = playerY;
-	            	float deltaX = playerVelX * dt, deltaY = playerVelY * dt;
-	            	playerX += deltaX;
-	            	playerY += deltaY;
-	            	
-	            	for (float i = 1; i < 3; i++) {
-	            		addComet(oldX + deltaX / i, oldY + deltaY / i);
-	            	}
-            	}
-                double playerPercentageToEdge = (double)(dst - unscaledMinDst) / (double)(unscaledMaxDst - unscaledMinDst);
+                for (float i = 1; i < 3; i++) {
+                    addComet(oldX + deltaX / i, oldY + deltaY / i);
+                }
+
+                double playerPercentageToEdge = (double)(dst - minDst) / (double)(maxDst - minDst);
                 if (!lastLoc) playerPercentageToEdge = 1 - playerPercentageToEdge;
                 if (playerPercentageToEdge < 0) playerPercentageToEdge = 0;
                 else if (playerPercentageToEdge > 1) playerPercentageToEdge = 1;
                 playerPercentageToEdge *= Math.PI;
-                
+
                 scaleFactor = (float)(1 + Math.sin(playerPercentageToEdge) * 0.08);
             }
-        } else {
-        	scaleFactor = 1f;
         }
 
         changeSpikeProtrusions(innerSpikes, dt);
@@ -493,7 +494,7 @@ public class Game extends ApplicationAdapter {
     }
 
     private void spawnSpikes(double playerDir) {
-        int numSpikes = 0;
+        int numSpikes;
 
         if (onOutside) {
             int maxRandom = Math.min(8, (score - 8) / 11);
@@ -505,8 +506,8 @@ public class Game extends ApplicationAdapter {
             if (score > 60) numSpikes = random.nextInt(2) == 0 ? 2 : 1;
             else if (score > 30) numSpikes = random.nextInt(2) == 0 ? 1 : 0;
             else if (score > 15) numSpikes = random.nextInt(5) == 0 ? 1 : 0;
+            else numSpikes = 0;
         }
-
 
         Spike[] spikes = onOutside ? outerSpikes : innerSpikes;
 
@@ -526,17 +527,18 @@ public class Game extends ApplicationAdapter {
                         float edgeDistance = spikeQuad - (int)spikeQuad;
                         final float minEdgeDistance = 0.2f;
 
-                        if (edgeDistance < minEdgeDistance || 
-                        	edgeDistance > (1f - minEdgeDistance) || 
-                        	Math.abs(spikeAngle - playerDir) < 0.7)
+                        if (edgeDistance < minEdgeDistance ||
+                            edgeDistance > (1f - minEdgeDistance) ||
+                            Math.abs(spikeAngle - playerDir) < 0.7)
                             continue;
 
-                        int numSpikesInQuadrant = 1;
+
+                       /*  int numSpikesInQuadrant = 1;
                         int jQuadrant = (int) spikeQuad;
 
                         for (int k = 0; k < spikes.length; k++) {
                             if (k == j) continue;
-                            if (!spikes[k].active || spikes[k].movingIn || !spikes[k].collidable) continue;
+                            if (!spikes[k].active) continue;
 
                             int kQuadrant = getQuadrant(spikes[k].angle, onOutside);
                             if (kQuadrant == jQuadrant) numSpikesInQuadrant++;
@@ -544,8 +546,8 @@ public class Game extends ApplicationAdapter {
                             if (Math.abs(spikes[k].angle - spikeAngle) < 0.225) continue FindAngle;
                         }
 
-                        if ((onOutside && numSpikesInQuadrant > 2) ||
-                            (!onOutside && numSpikesInQuadrant > 1)) continue;
+                       if ((onOutside && numSpikesInQuadrant > 2) ||
+                             (!onOutside && numSpikesInQuadrant > 1)) continue;*/
 
                         spikes[j].angle = spikeAngle;
                         spikes[j].active = true;
@@ -627,6 +629,8 @@ public class Game extends ApplicationAdapter {
                 }
                 else if (spikes[i].protrudePercent < 0) {
                     spikes[i].active = false;
+                    spikes[i].movingIn = false;
+                    spikes[i].protrudePercent = 0;
                 }
             }
         }
@@ -644,66 +648,68 @@ public class Game extends ApplicationAdapter {
         for (int i = 0; i < spikes.length; i++) {
             if (spikes[i].active) {
                 spikes[i].angle -= Math.toRadians(rotAmt);
-                spikes[i].angle %= Math.PI * 2.0;
-                if (spikes[i].angle < 0) spikes[i].angle += Math.PI * 2.0;
+                while (spikes[i].angle < 0) spikes[i].angle += Math.PI * 2.0;
+                while (spikes[i].angle > Math.PI * 2.0) spikes[i].angle -= Math.PI * 2.0;
             }
         }
     }
 
     private int getQuadrant(double rad, boolean outside) {
-        return (int)(getAdjustedAngle(rad, outside) / 90f);
+        float result = getAdjustedAngle(rad, outside) / 90f;
+        return (int) result;
     }
 
     private float getAdjustedAngle(double rad, boolean outside) {
         float angle = (float)Math.toDegrees(rad);
-        if (angle < 0) angle += 360;
         float outsideAngle = outside ? outerRotation : innerRotation;
-        float adjustedAngle = (angle + outsideAngle) % 360;
-        if (adjustedAngle < 0) adjustedAngle += 360;
+        float adjustedAngle = angle + outsideAngle;
+        while (adjustedAngle < 0) adjustedAngle += 360;
+        while (adjustedAngle > 360) adjustedAngle -= 360;
         return adjustedAngle;
     }
 
-
     private void lose() {
-        if (score > highscore) {
-            highscore = score;
-            highscoreString = getIntString(highscore);
+        if (playing) {
+            if (score > highscore) {
+                highscore = score;
+                highscoreString = getIntString(highscore);
 
-            prefs.putInteger(highscorePrefsString, highscore);
-            prefs.flush();
+                prefs.putInteger(highscorePrefsString, highscore);
+                prefs.flush();
 
-            if (leaderboard != null) leaderboard.publishHighscore(highscore);
+                if (leaderboard != null) leaderboard.publishHighscore(highscore);
+            }
+
+            cometIndex = 0;
+
+            //TODO: Clean up duplicated code, maybe by just combining the two arrays
+            for (int i = 0; i < innerSpikes.length; i++) {
+                innerSpikes[i].collidable = false;
+                innerSpikes[i].movingIn = true;
+            }
+
+            for (int i = 0; i < outerSpikes.length; i++) {
+                outerSpikes[i].collidable = false;
+                outerSpikes[i].movingIn = true;
+            }
+
+            scaleFactor = 1;
+            progressBarPercent = 0;
+            playing = false;
+            everPaused = false;
+            turning = false;
+            fadingTurningString = true;
+            gameStarted = false;
+            coinAngle = getRandomRad();
+            timeSinceCoinSpawned = 0;
+            gameOverDisplayCounter = 0f;
+            topMessage = gameOverString;
+            maskAlpha = 0;
+            coinAlpha = 0;
+
+            initShake();
+            Sounds.play(Sounds.lose);
         }
-
-        cometIndex = 0;
-        
-        //TODO: Clean up duplicated code, maybe by just combining the two arrays
-        for (int i = 0; i < innerSpikes.length; i++) {
-            innerSpikes[i].collidable = false;
-            innerSpikes[i].movingIn = true;
-        }
-
-        for (int i = 0; i < outerSpikes.length; i++) {
-            outerSpikes[i].collidable = false;
-            outerSpikes[i].movingIn = true;
-        }
-
-        scaleFactor = 1;
-        progressBarPercent = 0;
-        playing = false;
-        everPaused = false;
-        turning = false;
-        fadingTurningString = true;
-        gameStarted = false;
-        coinAngle = getRandomRad();
-        timeSinceCoinSpawned = 0;
-        gameOverDisplayCounter = 0f;
-        topMessage = gameOverString;
-        maskAlpha = 0;
-        coinAlpha = 0;
-
-        initShake();
-        Sounds.play(Sounds.lose);
     }
 
     private void rotatePlayer(float degrees) {
@@ -726,8 +732,7 @@ public class Game extends ApplicationAdapter {
         float outerArcRadius = outerRadius * 1.22f * scaleFactor;
         float outerCircleRadius = outerRadius * scaleFactor;
 
-        boolean outerGlow = (onInside || onOutside) ? onInside : lastLoc;
-        drawCircle(outerArcRadius, xCenter, outerRotation, outerGlow);
+        drawCircle(outerArcRadius, xCenter, outerRotation, lastLoc);
 
         texBatch.setColor(Color.WHITE);
         texBatch.draw(Textures.innerShadow, xCenter - outerCircleRadius, 0.5f - outerCircleRadius, outerCircleRadius * 2, outerCircleRadius * 2);
@@ -756,14 +761,14 @@ public class Game extends ApplicationAdapter {
         
         float innerArcRadius = innerRadius * scaleFactor;
         float innerCircleRadius = innerRadius * scaleFactor * 0.78f;
-        drawCircle(innerArcRadius, xCenter, innerRotation, !outerGlow);
+        drawCircle(innerArcRadius, xCenter, innerRotation, !lastLoc);
         
         texBatch.setColor(Color.WHITE);
         texBatch.draw(Textures.innerShadow, xCenter - innerCircleRadius, 0.5f - innerCircleRadius, innerCircleRadius * 2, innerCircleRadius * 2);
         
         texBatch.setColor(playerColor);
         texBatch.draw(Textures.player, playerX - playerRadius, playerY - playerRadius, playerRadius * 2, playerRadius * 2);
-        
+
         for (int i = 0; i < trail.length; i++) {
         	Comet comet = trail[i];
         	
@@ -796,10 +801,9 @@ public class Game extends ApplicationAdapter {
                 plus2Y = coinY;
                 plus2Alpha = 1;
 
-                double plus2Dir = Math.PI / 2.0;
-                final double plus2Speed = 0.001;
-                plus2VelX = (float)(Math.cos(plus2Dir) * plus2Speed);
-                plus2VelY = (float)(Math.sin(plus2Dir) * plus2Speed);
+                final double plus2Speed = 0.0015;
+                plus2VelX = (float)(Math.cos(coinAngle) * plus2Speed);
+                plus2VelY = (float)(Math.sin(coinAngle) * plus2Speed);
                 timeSinceCoinSpawned = 0;
 
                 while (true) {
@@ -950,25 +954,28 @@ public class Game extends ApplicationAdapter {
 
 	private void drawSpikesAndDoSpikeCollisionChecks(Spike[] spikes, boolean outside) {
         for (int i = 0; i < spikes.length; i++) {
-            if (!spikes[i].active) continue;
-
-            double spikeAngle = spikes[i].angle + Math.PI / 2.0;
+            if (!spikes[i].active || spikes[i].protrudePercent <= 0) continue;
 
             final float sideLength = 0.05f * (float)spikes[i].protrudePercent;
 
             float spikeOffs = outside ? 0.045f : 0.02f;
             if (outside) spikeOffs *= spikes[i].protrudePercent;
 
-            float spike0YOffs = outside ? -sideLength : 0;
-            float spike2YOffs = outside ? sideLength : -sideLength;
-            float radius = (outside ? outerRadius : innerRadius) * scaleFactor;
+            float radius = (outside ? outerRadius : innerRadius) * scaleFactor - spikeOffs;
 
-            spikeBuffer[0].set(centerX - sideLength / 2f, centerY - radius + spikeOffs + spike0YOffs);
-            spikeBuffer[1].set(spikeBuffer[0].x + sideLength, spikeBuffer[0].y);
-            spikeBuffer[2].set((spikeBuffer[0].x + spikeBuffer[1].x) / 2f, spikeBuffer[0].y + spike2YOffs);
+            spikeBuffer[0].set(centerX + radius, centerY - sideLength / 2f);
+            spikeBuffer[1].set(spikeBuffer[0].x, spikeBuffer[0].y + sideLength);
+            spikeBuffer[2].set(spikeBuffer[0].x + sideLength, (spikeBuffer[0].y + spikeBuffer[1].y) / 2f);
 
-            for (int j = 0; j < 3; j++)
-                rotateVector2(spikeBuffer[j], spikeAngle);
+            if (outside) {
+                spikeBuffer[0].x = spikeBuffer[2].x;
+                spikeBuffer[2].x = spikeBuffer[1].x;
+                spikeBuffer[1].x = spikeBuffer[0].x;
+            }
+
+            for (int j = 0; j < 3; j++) {
+                rotateVector2(spikeBuffer[j], spikes[i].angle);
+            }
 
             boolean shouldCollideWithSpike = spikes[i].collidable && timeSinceLastHit == 0;
 
@@ -982,13 +989,8 @@ public class Game extends ApplicationAdapter {
                     float dy = spikeBuffer[currentVertex].y - spikeBuffer[k].y;
 
                     spikeBuffer[nextVertex].set(spikeBuffer[k].x + dx / 2f, spikeBuffer[k].y + dy / 2f);
-                    rotateVector2(spikeBuffer[nextVertex], spikeAngle);
                 }
 
-            }
-
-
-            if (shouldCollideWithSpike) {
                 for (int j = 0; j < spikeBuffer.length; j++) {
                     if (Vector2.dst2(playerX, playerY, spikeBuffer[j].x, spikeBuffer[j].y) < playerRadius * playerRadius) {
                         lose();
