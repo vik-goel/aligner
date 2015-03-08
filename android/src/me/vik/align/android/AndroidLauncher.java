@@ -20,7 +20,8 @@ public class AndroidLauncher extends AndroidApplication {
         config.numSamples = 2;
         config.useAccelerometer = config.useCompass = false;
         config.hideStatusBar = false;
-
+        //config.useImmersiveMode = true;
+        
         leaderboard = new AndroidLeaderboard(this);
 
         Game game = new Game();

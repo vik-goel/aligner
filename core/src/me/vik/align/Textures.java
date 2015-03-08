@@ -15,20 +15,20 @@ public class Textures {
 	}
 
 	public static void loadTextures() {
-		Texture atlas = createTexture("atlas_small.png");
+		Texture atlas = createTexture("atlas.png");
 
-		soundOff = createRegion(atlas, 0, 0, 128, 128);
-		soundOn = createRegion(atlas, 128 * 2, 0, 128, 128);
-		musicOff = createRegion(atlas, 128 * 5, 128 * 2, 128, 128);
-		musicOn = createRegion(atlas, 128 * 7, 128 * 2, 128, 128);
-		leaderboard = createRegion(atlas, 128 * 4, 0, 128, 128);
-		pause = createRegion(atlas, 128 * 6, 0, 128, 128);
-		arrow = createRegion(atlas, 128 * 8, 0, 128, 128);
-		comet = createRegion(atlas, 0, 256, 512, 512);
+		soundOff = createRegion(atlas, 0, 0, 64*3, 64*3);
+		soundOn = createRegion(atlas, 64*4, 0, 64*3, 64*3);
+		musicOff = createRegion(atlas, 0, 64*3+10, 64*3, 64*3);
+		musicOn = createRegion(atlas, 64*4, 64*3+10, 64*3, 64*3);
+		leaderboard = createRegion(atlas, 64*8, 0, 64*3, 64*3);
+		pause = createRegion(atlas, 64*12, 0, 64*3, 64*3);
+		arrow = createRegion(atlas, 64*16, 0, 64*3, 64*3);
+		comet = createRegion(atlas, 0, 64*7, 512, 512);
         player = createRegion(atlas, 9*64, 7*64, 512, 512);
 		background = createRegion(atlas, 0, 1024, 1024, 1024);
         innerShadow = createRegion(atlas, 9 * 128, 10*128, 768, 768);
-		star = createRegion(atlas, 128 * 10, 0, 140, 140);
+		star = createRegion(atlas, 64*20, 0, 280, 280);
         arcWithGlow = createRegion(atlas, 2048-3*128+8, 128-34-8, 290, 290);
         circle = createRegion(atlas, 9 * 128, 3 * 128, 768, 768);
 	}

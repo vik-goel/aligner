@@ -17,9 +17,11 @@ import java.util.Random;
 
 //TODO: Better game name, Comet Shooter?
 //TODO: Better icon
-//TODO: Better music or just remove the music?
+//TODO: Better music
 //TODO: Add achievements
-//TODO: Test leaderboards on release builds
+//TODO: Change font
+//TODO: Transition back to backgroundsColors[0] on death
+//TODO: Fix bug that allows spikes to spawn on top of the player
 
 public class Game extends ApplicationAdapter {
 
@@ -31,6 +33,18 @@ public class Game extends ApplicationAdapter {
         Util.getColor(220, 172, 255),//purple
     };
 
+    private static final Color[] backgroundColors = {
+    	Util.getColor(95, 142, 191),//blue
+    	Util.getColor(95, 191, 97), //green
+    	Util.getColor(191, 95, 95), //red
+    	Util.getColor(145, 95, 191),//purple
+    	Util.getColor(191, 161, 95),//orange
+    };
+    
+    private Color bgColor = new Color();
+    private float backgroundColorIndex = 0;
+    private boolean changeBackgroundColor = false;
+    
     public static final String fileOutputName = "me.vik.aligner";
     public static Preferences prefs;
     
@@ -92,6 +106,7 @@ public class Game extends ApplicationAdapter {
     
     private Comet[] trail = new Comet[100];
     private int cometIndex = 0;
+    private float dCometAlpha = -0.05f;
     private Vector2 v2 = new Vector2();
     
     private float maskAlpha = 1;
@@ -224,7 +239,6 @@ public class Game extends ApplicationAdapter {
 
         shakeTime = random.nextFloat() * (maxShakeTime - minShakeTime) + minShakeTime;
         shakeTimeCounter = 0;
-
     }
 
     private void shake(float dt) {
@@ -268,18 +282,6 @@ public class Game extends ApplicationAdapter {
         }
     }
 
-    public void addComet(float x, float y) {
-    	Comet comet = trail[cometIndex];
-    	
-    	comet.x = x;
-    	comet.y = y;
-    	comet.alpha = 1;
-    	comet.moving = false;
-    	comet.headingOutwards = lastLoc;
-        cometIndex++;
-        cometIndex %= trail.length;
-    }
-
     public void render() {
         final float maxDt = 2f;
 
@@ -314,9 +316,7 @@ public class Game extends ApplicationAdapter {
 	    			comet.y = v2.y * dstFromCenter + centerY;
 	        	}
 	        	
-	    		float dAlpha = -0.05f;
-	        	
-	        	comet.alpha += dAlpha * dt;
+	        	comet.alpha += dCometAlpha * dt;
 	        	if (comet.alpha < 0) comet.alpha = 0;
         	}
         }
@@ -452,7 +452,15 @@ public class Game extends ApplicationAdapter {
                 scaleFactor = 1f;
             } else {
                 for (float i = 1; i < 3; i++) {
-                    addComet(oldX + deltaX / i, oldY + deltaY / i);
+                    Comet comet = trail[cometIndex];
+
+                    comet.x = oldX + deltaX / i;
+                    comet.y = oldY + deltaY / i;
+                    comet.alpha = 1 - dCometAlpha / i;
+                    comet.moving = false;
+                    comet.headingOutwards = lastLoc;
+                    cometIndex++;
+                    cometIndex %= trail.length;
                 }
 
                 double playerPercentageToEdge = (double)(dst - minDst) / (double)(maxDst - minDst);
@@ -467,15 +475,47 @@ public class Game extends ApplicationAdapter {
 
         changeSpikeProtrusions(innerSpikes, dt);
         changeSpikeProtrusions(outerSpikes, dt);
-        drawScreen(dt);
 
         if (!startedLeaderboard) {
             startedLeaderboard = true;
             if (leaderboard != null) leaderboard.start();
         }
+        
+        if (changeBackgroundColor) {
+        	float maxBackgroundColorIncrease = 1f - (backgroundColorIndex - (int)backgroundColorIndex);
+        	float dBackgroundColorIndex = 0.035f * dt;
+        	
+        	if (maxBackgroundColorIncrease - 0.01f > dBackgroundColorIndex) {
+        		backgroundColorIndex += dBackgroundColorIndex;
+        	} else {
+        		backgroundColorIndex = (((int)backgroundColorIndex) + 1) % backgroundColors.length;
+        		changeBackgroundColor = false;
+        	}
+        }
+        
+        float backgroundColorLerp = backgroundColorIndex - (int)backgroundColorIndex;
+        
+        int currentBgColIndex = (int)backgroundColorIndex;
+        int nextBgColIndex = (currentBgColIndex + 1) % backgroundColors.length;
+        Color currentBgCol = backgroundColors[currentBgColIndex];
+        Color nextBgCol = backgroundColors[nextBgColIndex];
+        
+        bgColor.r = (1 - backgroundColorLerp) * currentBgCol.r + backgroundColorLerp * nextBgCol.r;
+        bgColor.g = (1 - backgroundColorLerp) * currentBgCol.g + backgroundColorLerp * nextBgCol.g;
+        bgColor.b = (1 - backgroundColorLerp) * currentBgCol.b + backgroundColorLerp * nextBgCol.b;
+        bgColor.a = 1;
+        
+        drawScreen(dt);
     }
 
     private void setScore(int score) {
+    	for (int i = this.score + 1; i <= score; i++) {
+    		 if (i != 0 && i % 10 == 0) {
+    			 changeBackgroundColor = true;
+    			 break;
+    		 }
+    	}
+    	
         this.score = score;
         scoreString = getIntString(score);
     }
@@ -497,16 +537,16 @@ public class Game extends ApplicationAdapter {
         int numSpikes;
 
         if (onOutside) {
-            int maxRandom = Math.min(8, (score - 8) / 11);
-            int minSpikes = Math.min(4, 1 + score / 23);
+            int maxRandom = Math.min(10, 2 + score / 11);
+            int minSpikes = Math.min(10, 4 + score / 8);
 
             int rand = maxRandom > 0 ? random.nextInt(maxRandom) : 0;
             numSpikes = rand + minSpikes;
         } else {
-            if (score > 60) numSpikes = random.nextInt(2) == 0 ? 2 : 1;
-            else if (score > 30) numSpikes = random.nextInt(2) == 0 ? 1 : 0;
-            else if (score > 15) numSpikes = random.nextInt(5) == 0 ? 1 : 0;
-            else numSpikes = 0;
+            if (score > 24) numSpikes = 1 + random.nextInt((score - 12) / 6);
+            else if (score > 12) numSpikes = random.nextInt(2) == 0 ? 1 : 0;
+            else if (score > 6) numSpikes = random.nextInt(3) == 0 ? 1 : 0;
+            else numSpikes = random.nextInt(4) == 0 ? 1 : 0;
         }
 
         Spike[] spikes = onOutside ? outerSpikes : innerSpikes;
@@ -514,6 +554,7 @@ public class Game extends ApplicationAdapter {
         for (int i = 0; i < spikes.length; i++) {
             if (spikes[i].active) {
                 spikes[i].movingIn = true;
+                spikes[i].movingOut = false;
             }
         }
 
@@ -526,28 +567,30 @@ public class Game extends ApplicationAdapter {
                         float spikeQuad = getAdjustedAngle(spikeAngle, onOutside) / 90f;
                         float edgeDistance = spikeQuad - (int)spikeQuad;
                         final float minEdgeDistance = 0.2f;
+                        final float minPlayerDistance = 0.7f;
 
-                        if (edgeDistance < minEdgeDistance ||
-                            edgeDistance > (1f - minEdgeDistance) ||
-                            Math.abs(spikeAngle - playerDir) < 0.7)
-                            continue;
+                        if (edgeDistance < minEdgeDistance 
+                        	 || edgeDistance > (1f - minEdgeDistance) 
+                             || Math.abs(spikeAngle - playerDir) < minPlayerDistance
+                            )continue;
 
 
-                       /*  int numSpikesInQuadrant = 1;
+                        int numSpikesInQuadrant = 1;
                         int jQuadrant = (int) spikeQuad;
 
+                        float minSpikeDst = onOutside ? 0.16f : 0.35f;
+                        
                         for (int k = 0; k < spikes.length; k++) {
-                            if (k == j) continue;
-                            if (!spikes[k].active) continue;
-
-                            int kQuadrant = getQuadrant(spikes[k].angle, onOutside);
-                            if (kQuadrant == jQuadrant) numSpikesInQuadrant++;
-
-                            if (Math.abs(spikes[k].angle - spikeAngle) < 0.225) continue FindAngle;
+                            if (spikes[k].active) {
+	                            int kQuadrant = getQuadrant(spikes[k].angle, onOutside);
+	                            if (kQuadrant == jQuadrant) numSpikesInQuadrant++;
+	
+	                            if (Math.abs(spikes[k].angle - spikeAngle) < minSpikeDst) continue FindAngle;
+                            }
                         }
 
-                       if ((onOutside && numSpikesInQuadrant > 2) ||
-                             (!onOutside && numSpikesInQuadrant > 1)) continue;*/
+                       if ((onOutside && numSpikesInQuadrant > 3) ||
+                             (!onOutside && numSpikesInQuadrant > 1)) continue;
 
                         spikes[j].angle = spikeAngle;
                         spikes[j].active = true;
@@ -570,7 +613,7 @@ public class Game extends ApplicationAdapter {
             float progressBarIncrease = 1.5f / 360f;
             final float maxProgressBarSpeedModifier = 1.33f;
 
-            float progressBarSpeedModifier = 1 + (score - 15) / 110f;
+            float progressBarSpeedModifier = 1 + score / 75f;
             if (progressBarSpeedModifier > maxProgressBarSpeedModifier) progressBarSpeedModifier = maxProgressBarSpeedModifier;
 
             progressBarPercent += progressBarIncrease * progressBarSpeedModifier * dt;
@@ -724,17 +767,22 @@ public class Game extends ApplicationAdapter {
         float xCenter = Util.getAspectRatio() / 2f;
         Util.enableBlending();
         
+        fontBatch.begin();
+        fontBatch.setColor(bgColor);
+        float backgroundSizeEpsilon = 1f;
+        fontBatch.draw(Textures.background, -backgroundSizeEpsilon, -backgroundSizeEpsilon, Gdx.graphics.getWidth() + backgroundSizeEpsilon * 2, Gdx.graphics.getHeight() + backgroundSizeEpsilon * 2);
+        fontBatch.end();
+
+        Util.enableBlending();
         texBatch.begin();
         texBatch.setColor(Color.WHITE);
-        float backgroundSizeEpsilon = 0.01f;
-        texBatch.draw(Textures.background, -backgroundSizeEpsilon, -backgroundSizeEpsilon, Util.getAspectRatio() + backgroundSizeEpsilon * 2, 1f + backgroundSizeEpsilon * 2);
-        
+
         float outerArcRadius = outerRadius * 1.22f * scaleFactor;
         float outerCircleRadius = outerRadius * scaleFactor;
 
         drawCircle(outerArcRadius, xCenter, outerRotation, lastLoc);
 
-        texBatch.setColor(Color.WHITE);
+        texBatch.setColor(bgColor);
         texBatch.draw(Textures.innerShadow, xCenter - outerCircleRadius, 0.5f - outerCircleRadius, outerCircleRadius * 2, outerCircleRadius * 2);
         
         texBatch.end();
@@ -763,7 +811,7 @@ public class Game extends ApplicationAdapter {
         float innerCircleRadius = innerRadius * scaleFactor * 0.78f;
         drawCircle(innerArcRadius, xCenter, innerRotation, !lastLoc);
         
-        texBatch.setColor(Color.WHITE);
+        texBatch.setColor(bgColor);
         texBatch.draw(Textures.innerShadow, xCenter - innerCircleRadius, 0.5f - innerCircleRadius, innerCircleRadius * 2, innerCircleRadius * 2);
         
         texBatch.setColor(playerColor);
@@ -924,7 +972,25 @@ public class Game extends ApplicationAdapter {
     
     private void drawCircle(float radius, float xCenter, float rotation, boolean glows) {
     	final float circleRadius = radius * 0.88f;
-    	texBatch.draw(Textures.circle, xCenter - circleRadius, 0.5f - circleRadius, circleRadius, circleRadius, circleRadius * 2, circleRadius * 2, 1, 1, -rotation);
+
+        texBatch.end();
+        sr.begin(ShapeType.Filled);
+
+        sr.setColor(colors[0]);
+        sr.arc(xCenter, 0.5f, circleRadius, -rotation, 90, 60);
+
+        sr.setColor(colors[1]);
+        sr.arc(xCenter, 0.5f, circleRadius, 90 - rotation, 90, 60);
+
+        sr.setColor(colors[2]);
+        sr.arc(xCenter, 0.5f, circleRadius, 180 - rotation, 90, 60);
+
+        sr.setColor(colors[3]);
+        sr.arc(xCenter, 0.5f, circleRadius, 270 - rotation, 90, 60);
+
+        sr.end();
+        texBatch.begin();
+    	//texBatch.draw(Textures.circle, xCenter - circleRadius, 0.5f - circleRadius, circleRadius, circleRadius, circleRadius * 2, circleRadius * 2, 1, 1, -rotation);
 
         drawArcGlow(0, xCenter, radius, -rotation, glows);
         drawArcGlow(1, xCenter, radius, 90 - rotation, glows);
@@ -994,6 +1060,8 @@ public class Game extends ApplicationAdapter {
                 for (int j = 0; j < spikeBuffer.length; j++) {
                     if (Vector2.dst2(playerX, playerY, spikeBuffer[j].x, spikeBuffer[j].y) < playerRadius * playerRadius) {
                         lose();
+                        playerColor = colors[lastPlayerColorIndex];
+                        playerColorIndex = lastPlayerColorIndex;
                         break;
                     }
                 }
